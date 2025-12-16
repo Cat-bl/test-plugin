@@ -62,4 +62,4 @@ pluginSettings:
     - videoAnalysisTool
     - voiceTool
     - webParserTool
-  githubToken: 
+  githubToken: ""
