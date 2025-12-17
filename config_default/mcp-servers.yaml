@@ -10,7 +10,7 @@
 servers:
   # Memory记忆服务器 - 提供持久化记忆能力
   basic-memory:
-     enabled: false
+     enabled: true
      command: "uvx"
      args:
       - "basic-memory"
@@ -212,10 +212,9 @@ servers:
       **AI操作**: edit_note 追加 "- 喜欢吃沙县小吃"
       **AI回复**: 沙县不错，实惠又好吃！拌面加个蛋绝了
 
-    # ============ 第三方MCP服务器示例 ============
+  # ============ 以下为第三方MCP服务器配置示例参考，请不要开启 ============
 
-    # Fetch网页获取服务器
-
+  # PPT文档
   ChatPPT:
       enabled: false
       type: "sse"
@@ -226,7 +225,7 @@ servers:
       }
       systemPrompt:
 
-  # ============ 自定义服务器示例 ============
+  # ============ 下以下为自定义服务器配置示例参考，请不要开启 ============
 
   # 自定义Node.js服务器
   custom-node:
