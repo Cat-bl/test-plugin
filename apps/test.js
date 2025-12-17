@@ -224,56 +224,86 @@ export class ExamplePlugin extends plugin {
     return parts.length ? parts.join("\n\n") : "当前没有可用的工具。"
   }
 
-  initConfig() {
-    const defaultConfig = {
-      pluginSettings: {
-        enabled: false,
-        groupHistory: true,
-        UseTools: true,
-        replyChance: 0.015,
-        ConcurrentLimit: 5,
-        triggerPrefixes: ["芙宁娜", "芙芙"],
-        excludeMessageTypes: ["file", "video"],
-        allowedGroups: [782312429],
-        enableGroupWhitelist: true,
-        whitelistRejectMsg: "本群未开启此功能哦~",
-        groupMaxMessages: 100,
-        groupChatMemoryDays: 1,
-        maxToolRounds: 5,
-        providers: "oneapi",
-        systemContent: `你是QQ群里一个叫"${Bot.nickname}"的普通群友...`,
-        ForcedAvatarMode: true,
-        ForceformatMessage: false,
-        OpenAiUrl: "https://ai.hybgzs.com/v1/chat/completions",
-        OpenAiModel: "gemini-2.5-flash",
-        OpenAiApikey: "sk-xxx",
-        OneApiUrl: "https://ai.hybgzs.com",
-        OneApiModel: "gemini-2.5-pro",
-        OneApiKey: ["cpk_xxx"],
-        openai_tool_choice: "auto",
-        oneapi_tools: ["likeTool", "pokeTool", "googleImageAnalysisTool", "aiMindMapTool", "bananaTool", "bingImageSearchTool", "changeCardTool", "githubRepoTool", "googleImageEditTool", "jinyanTool", "qqZoneTool", "freeSearchTool", "searchMusicTool", "searchVideoTool", "videoAnalysisTool", "voiceTool", "webParserTool"],
-        githubToken: ""
+  ensureConfigFiles() {
+    const configDir = path.join(process.cwd(), "plugins/test-plugin/config")
+    const configDefaultDir = path.join(process.cwd(), "plugins/test-plugin/config_default")
+
+    // 需要检查的配置文件列表
+    const configFiles = ["message.yaml", "mcp-servers.yaml"]
+
+    // 检查config_default目录是否存在
+    if (!fs.existsSync(configDefaultDir)) {
+      logger.error(`[配置] 默认配置目录不存在: ${configDefaultDir}`)
+      logger.error(`[配置] 请确保 config_default 目录存在并包含默认配置文件`)
+      return false
+    }
+
+    // 确保config目录存在
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true })
+      logger.info(`[配置] 已创建配置目录: ${configDir}`)
+    }
+
+    // 检查并复制缺失的配置文件
+    for (const fileName of configFiles) {
+      const configPath = path.join(configDir, fileName)
+      const defaultPath = path.join(configDefaultDir, fileName)
+
+      if (!fs.existsSync(configPath)) {
+        if (fs.existsSync(defaultPath)) {
+          fs.copyFileSync(defaultPath, configPath)
+          logger.info(`[配置] 已从 config_default 复制配置文件: ${fileName}`)
+        } else {
+          logger.error(`[配置] 默认配置文件不存在: ${defaultPath}`)
+        }
       }
     }
 
-    const configPath = path.join(process.cwd(), "plugins/test-plugin/config/message.yaml")
+    return true
+  }
+
+  initConfig() {
+    // 先确保配置文件存在
+    this.ensureConfigFiles()
+
+    const configDir = path.join(process.cwd(), "plugins/test-plugin/config")
+    const configDefaultDir = path.join(process.cwd(), "plugins/test-plugin/config_default")
+    const configPath = path.join(configDir, "message.yaml")
+    const defaultConfigPath = path.join(configDefaultDir, "message.yaml")
 
     try {
+      // 检查默认配置文件是否存在
+      if (!fs.existsSync(defaultConfigPath)) {
+        logger.error(`[配置] 默认配置文件不存在: ${defaultConfigPath}`)
+        logger.error(`[配置] 请在 config_default 目录下创建 message.yaml 文件`)
+        this.config = {}
+        return
+      }
+
+      // 读取默认配置
+      const defaultConfig = YAML.parse(fs.readFileSync(defaultConfigPath, "utf8"))
+
       if (fs.existsSync(configPath)) {
+        // 读取用户配置并与默认配置合并
         const config = YAML.parse(fs.readFileSync(configPath, "utf8"))
         const merged = this.mergeConfig(defaultConfig, config)
+
+        // 如果配置有更新，写回文件
         if (JSON.stringify(config) !== JSON.stringify(merged)) {
           fs.writeFileSync(configPath, YAML.stringify(merged))
+          logger.info(`[配置] 配置文件已更新，合并了新增字段`)
         }
         this.config = merged.pluginSettings
       } else {
+        // 配置文件不存在，从默认配置创建
         fs.mkdirSync(path.dirname(configPath), { recursive: true })
         fs.writeFileSync(configPath, YAML.stringify(defaultConfig))
+        logger.info(`[配置] 已从默认配置创建: ${configPath}`)
         this.config = defaultConfig.pluginSettings
       }
     } catch (err) {
-      logger.error(`[群管工具] 加载配置文件失败: ${err}`)
-      this.config = defaultConfig.pluginSettings
+      logger.error(`[配置] 加载配置文件失败: ${err}`)
+      this.config = {}
     }
   }
 
@@ -346,7 +376,7 @@ export class ExamplePlugin extends plugin {
     return `[${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}]`
   }
 
-  async buildMessageContent(sender, msg, images, atQq = [], group) {
+  async buildMessageContent(sender, msg, images, atQq = [], group, e = null) {
     const senderRole = roleMap[sender.role] || "member"
     const senderInfo = `${sender.card || sender.nickname}(qq号: ${sender.user_id})[群身份: ${senderRole}]`
 
@@ -361,14 +391,78 @@ export class ExamplePlugin extends plugin {
       atContent = `艾特了 ${atUsers.join("、")}，`
     }
 
+    // 处理引用消息
+    let quoteContent = ""
+    if (e?.getReply) {
+      try {
+        const reply = await e.getReply()
+        if (reply) {
+          const quotedSender = reply.sender
+          // 提取被引用消息的文本内容
+          let quotedMsg = ""
+          if (reply.message && Array.isArray(reply.message)) {
+            quotedMsg = reply.message
+              .filter(m => m.type === "text")
+              .map(m => m.text)
+              .join("")
+              .trim()
+          } else if (typeof reply.raw_message === "string") {
+            quotedMsg = reply.raw_message
+          }
+
+          // 检查被引用消息是否包含图片
+          const quotedImages = reply.message?.filter(m => m.type === "image") || []
+          const hasQuotedImage = quotedImages.length > 0
+
+          if (quotedSender) {
+            // 获取被引用者的群身份信息
+            let quotedRole = "member"
+            let quotedNickname = quotedSender.nickname || quotedSender.card || "未知用户"
+
+            if (group) {
+              try {
+                const memberMap = await group.getMemberMap()
+                const quotedMemberInfo = memberMap.get(Number(quotedSender.user_id))
+                if (quotedMemberInfo) {
+                  quotedRole = roleMap[quotedMemberInfo.role] || "member"
+                  quotedNickname = quotedMemberInfo.card || quotedMemberInfo.nickname || quotedNickname
+                }
+              } catch (err) {
+                // 获取成员信息失败，使用默认值
+              }
+            }
+
+            const quotedSenderInfo = `${quotedNickname}(qq号: ${quotedSender.user_id})[群身份: ${quotedRole}]`
+
+            // 构建引用内容描述
+            let quotedDescription = ""
+            if (quotedMsg && hasQuotedImage) {
+              quotedDescription = `"${quotedMsg}" 以及${quotedImages.length}张图片`
+            } else if (quotedMsg) {
+              quotedDescription = `"${quotedMsg}"`
+            } else if (hasQuotedImage) {
+              quotedDescription = `${quotedImages.length}张图片`
+            } else {
+              quotedDescription = "一条消息"
+            }
+
+            quoteContent = `引用了 ${quotedSenderInfo} 的消息: ${quotedDescription}，`
+          }
+        }
+      } catch (error) {
+        console.error("获取引用消息失败:", error)
+      }
+    }
+
     const content = []
     if (msg) content.push(`在群里说: ${msg}`)
     if (images?.length) {
       content.push(`发送了${images.length === 1 ? "一张" : images.length + " 张"}图片${images.map(img => `\n![图片](${img})`).join("")}`)
     }
 
-    return `${this.formatTime()} ${senderInfo}: ${atContent}${content.join("，")}`
+    return `${this.formatTime()} ${senderInfo}: ${quoteContent}${atContent}${content.join("，")}`
   }
+
 
   getProvider() {
     return this.config?.providers?.toLowerCase()
@@ -500,7 +594,7 @@ export class ExamplePlugin extends plugin {
         })
       }
 
-      const userContent = await limit(() => this.buildMessageContent(e.sender, args, images, atQq, e.group))
+      const userContent = await limit(() => this.buildMessageContent(e.sender, args, images, atQq, e.group, e))
 
       const getHighLevelMembers = async group => {
         if (!group) return ""
@@ -535,8 +629,8 @@ ${this.config.systemContent}
    @+qq号,例如@32174，@xxxxx
 
 ${mcpPrompts}
-
-|* 工具使用隐藏规则：
+【工具使用隐藏规则】
+|* ：
    | 1⃣ 严禁在回复中显示工具调用代码或函数名称
    | 2⃣ 工具执行后，以自然对话方式呈现结果，如同人类完成了该任务
     **绝对禁止**在任何回复中显示**工具调用代码、函数名称或任何内部执行细节**。这包括但不限于：
@@ -1044,45 +1138,38 @@ ${mcpPrompts}
   async initMCP() {
     try {
       const configDir = path.join(process.cwd(), "plugins/test-plugin/config")
+      const configDefaultDir = path.join(process.cwd(), "plugins/test-plugin/config_default")
       const configPath = path.join(configDir, "mcp-servers.yaml")
-      const defaultConfigPath = path.join(configDir, "mcp-servers-default.yaml")
+      const defaultConfigPath = path.join(configDefaultDir, "mcp-servers.yaml")
 
-      // 如果配置文件不存在
+      // 确保配置目录存在
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true })
+      }
+
+      // 如果配置文件不存在，从config_default复制
       if (!fs.existsSync(configPath)) {
-        // 检查默认模板是否存在
         if (fs.existsSync(defaultConfigPath)) {
-          logger.info("[MCP] 未找到MCP配置文件，正在从默认模板创建...")
-          this.createDefaultMCPConfig(configPath)
-          logger.info("[MCP] 已创建MCP配置文件: " + configPath)
-          logger.info("[MCP] 请根据需要修改配置并启用相应的MCP服务器")
+          fs.copyFileSync(defaultConfigPath, configPath)
+          logger.info(`[MCP] 已从 config_default 复制配置文件: mcp-servers.yaml`)
+          logger.info(`[MCP] 请根据需要修改配置并启用相应的MCP服务器`)
         } else {
-          logger.warn("[MCP] 未找到MCP配置文件和默认模板")
-          logger.warn("[MCP] 请创建配置文件: " + configPath)
-          logger.warn("[MCP] 或创建默认模板: " + defaultConfigPath)
+          logger.warn(`[MCP] 默认配置文件不存在: ${defaultConfigPath}`)
+          logger.warn(`[MCP] 请在 config_default 目录下创建 mcp-servers.yaml 文件`)
           return
         }
       }
 
+      // 再次检查配置文件是否存在
+      if (!fs.existsSync(configPath)) {
+        logger.info("[MCP] MCP配置文件不存在，跳过初始化")
+        return
+      }
+
       const mcpConfig = YAML.parse(fs.readFileSync(configPath, "utf8"))
 
-      // // 如果 basic-memory 服务器启用，自动创建数据目录
-      // if (mcpConfig.servers['basic-memory']?.enabled) {
-      //   const memoryDataDir = mcpConfig.servers['basic-memory'].env?.BASIC_MEMORY_DATA_DIR
-      //   if (memoryDataDir) {
-      //     const dirPath = path.isAbsolute(memoryDataDir)
-      //       ? memoryDataDir
-      //       : path.join(process.cwd(), memoryDataDir)
-
-      //     // 创建目录（如果不存在）
-      //     if (!fs.existsSync(dirPath)) {
-      //       fs.mkdirSync(dirPath, { recursive: true })
-      //       logger.info(`[MCP] 已创建 记忆 数据目录: ${dirPath}`)
-      //     }
-      //   }
-      // }
-
       if (!mcpConfig?.servers) {
-        logger.info("[MCP] MCP配置为空")
+        logger.info("[MCP] MCP配置为空或无服务器配置")
         return
       }
 
@@ -1105,38 +1192,6 @@ ${mcpPrompts}
       logger.info(`[MCP] 初始化完成，共加载 ${mcpManager.tools.size} 个MCP工具`)
     } catch (error) {
       logger.error("[MCP] 初始化失败:", error)
-    }
-  }
-
-  /**
- * 创建默认MCP配置文件（从默认模板复制）
- * @param {string} configPath - 配置文件路径
- */
-  createDefaultMCPConfig(configPath) {
-    const configDir = path.dirname(configPath)
-    const defaultConfigPath = path.join(configDir, "mcp-servers-default.yaml")
-
-    // 确保目录存在
-    if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, { recursive: true })
-    }
-
-    // 检查默认配置文件是否存在
-    if (fs.existsSync(defaultConfigPath)) {
-      // 复制默认配置文件
-      fs.copyFileSync(defaultConfigPath, configPath)
-      logger.info(`[MCP] 已从默认模板创建配置文件: ${configPath}`)
-    } else {
-      // 默认配置文件不存在，创建空配置
-      const emptyConfig = `# MCP (Model Context Protocol) 服务器配置
-# 默认模板文件 mcp-servers-default.yaml 不存在
-# 请手动创建配置或从示例中复制
-
-servers: {}
-`
-      fs.writeFileSync(configPath, emptyConfig, "utf8")
-      logger.warn(`[MCP] 默认模板文件不存在: ${defaultConfigPath}`)
-      logger.warn(`[MCP] 已创建空配置文件，请手动配置或创建默认模板`)
     }
   }
 

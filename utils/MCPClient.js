@@ -1,29 +1,41 @@
+// utils/MCPClient.js
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
-import { spawn } from "child_process"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 
 export class MCPClientManager {
     constructor() {
-        this.clients = new Map()        // 存储多个MCP服务器连接
+        this.clients = new Map()        // 存储多个MCP服务器连接: serverName -> {client, transport, type, config}
         this.tools = new Map()          // 工具名 -> {client, toolInfo, serverName}
         this.serverConfigs = new Map()  // 存储服务器完整配置（包含systemPrompt）
     }
 
     /**
-     * 连接到MCP服务器
+     * 连接到MCP服务器（自动识别 stdio/sse 类型）
      * @param {string} serverName - 服务器标识名
      * @param {object} config - 服务器配置
      */
     async connectServer(serverName, config) {
         try {
-            const { command, args = [], env = {} } = config
+            // 如果已连接，先断开
+            if (this.clients.has(serverName)) {
+                logger.info(`[MCP] 服务器 ${serverName} 已存在，正在重新连接...`)
+                await this.disconnectServer(serverName)
+            }
 
-            // 创建子进程传输层
-            const transport = new StdioClientTransport({
-                command,
-                args,
-                env: { ...process.env, ...env }
-            })
+            // 根据类型选择传输方式
+            const transportType = (config.type || 'stdio').toLowerCase()
+            let transport
+
+            if (transportType === 'sse') {
+                // SSE 远程服务器
+                transport = this.createSSETransport(serverName, config)
+                logger.info(`[MCP] 正在连接 SSE 服务器: ${serverName}`)
+            } else {
+                // stdio 本地服务器
+                transport = this.createStdioTransport(serverName, config)
+                logger.info(`[MCP] 正在连接 stdio 服务器: ${serverName}`)
+            }
 
             // 创建MCP客户端
             const client = new Client({
@@ -36,16 +48,23 @@ export class MCPClientManager {
             // 连接服务器
             await client.connect(transport)
 
-            this.clients.set(serverName, { client, transport, config })
+            // 保存客户端信息
+            this.clients.set(serverName, {
+                client,
+                transport,
+                type: transportType,
+                config
+            })
 
             // 保存完整配置（包含 systemPrompt）
             this.serverConfigs.set(serverName, {
                 ...config,
+                type: transportType,
                 connected: true,
                 connectedAt: new Date().toISOString()
             })
 
-            logger.info(`[MCP] 已连接服务器: ${serverName}`)
+            logger.info(`[MCP] 已连接服务器: ${serverName} (${transportType})`)
 
             // 获取并注册该服务器的工具
             await this.registerServerTools(serverName, client)
@@ -63,6 +82,98 @@ export class MCPClientManager {
 
             return false
         }
+    }
+
+    /**
+     * 创建 SSE 传输（远程服务器）
+     * @param {string} serverName - 服务器名
+     * @param {object} config - 配置
+     */
+    createSSETransport(serverName, config) {
+        if (!config.baseUrl) {
+            throw new Error(`SSE 服务器 ${serverName} 需要配置 baseUrl`)
+        }
+
+        // 构建请求头
+        const headers = {}
+        if (config.headers) {
+            if (typeof config.headers === 'object') {
+                Object.entries(config.headers).forEach(([key, value]) => {
+                    // 移除可能的引号并确保是字符串
+                    if (value !== undefined && value !== null) {
+                        headers[key] = String(value).replace(/^["']|["']$/g, '')
+                    }
+                })
+            }
+        }
+
+        logger.info(`[MCP] SSE 连接配置: ${config.baseUrl}`)
+
+        // 创建 SSE 传输
+        const transport = new SSEClientTransport(
+            new URL(config.baseUrl),
+            {
+                requestInit: {
+                    headers
+                }
+            }
+        )
+
+        return transport
+    }
+
+    /**
+     * 创建 stdio 传输（本地服务器）
+     * @param {string} serverName - 服务器名
+     * @param {object} config - 配置
+     */
+    createStdioTransport(serverName, config) {
+        const { command, args = [], env = {} } = config
+
+        if (!command) {
+            throw new Error(`stdio 服务器 ${serverName} 需要配置 command`)
+        }
+
+        // 过滤掉 env 中值为 undefined/null/空字符串 的项
+        const cleanEnv = {}
+        if (env && typeof env === 'object') {
+            Object.entries(env).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') {
+                    cleanEnv[key] = String(value)
+                }
+            })
+        }
+
+        // 创建传输层 - StdioClientTransport 会自己管理子进程
+        const transport = new StdioClientTransport({
+            command,
+            args,
+            env: { ...process.env, ...cleanEnv }
+        })
+
+        return transport
+    }
+
+    /**
+     * 处理服务器断开连接
+     * @param {string} serverName - 服务器名
+     */
+    handleServerDisconnect(serverName) {
+        // 移除该服务器的工具
+        for (const [toolName, { serverName: sn }] of this.tools) {
+            if (sn === serverName) {
+                this.tools.delete(toolName)
+            }
+        }
+
+        // 更新配置状态
+        const config = this.serverConfigs.get(serverName)
+        if (config) {
+            config.connected = false
+            config.disconnectedAt = new Date().toISOString()
+        }
+
+        this.clients.delete(serverName)
     }
 
     /**
@@ -222,14 +333,22 @@ export class MCPClientManager {
             throw new Error(`MCP工具不存在: ${toolName}`)
         }
 
-        const { client } = toolEntry
+        const { client, serverName } = toolEntry
+
+        // 检查服务器是否仍然连接
+        if (!this.clients.has(serverName)) {
+            throw new Error(`MCP服务器 ${serverName} 已断开连接`)
+        }
 
         try {
+            logger.info(`[MCP] 执行工具: ${toolName}, 参数: ${JSON.stringify(args)}`)
+
             const result = await client.callTool({
                 name: toolName,
                 arguments: args
             })
 
+            logger.info(`[MCP] 工具 ${toolName} 执行完成`)
             return result
         } catch (error) {
             logger.error(`[MCP] 执行工具 ${toolName} 失败:`, error)
@@ -252,20 +371,52 @@ export class MCPClientManager {
     }
 
     /**
+     * 断开指定服务器
+     * @param {string} serverName - 服务器名
+     */
+    async disconnectServer(serverName) {
+        const clientInfo = this.clients.get(serverName)
+        if (!clientInfo) {
+            return false
+        }
+
+        try {
+            // 关闭客户端连接
+            if (clientInfo.client) {
+                await clientInfo.client.close().catch(() => { })
+            }
+
+            // 关闭传输层（会自动关闭子进程）
+            if (clientInfo.transport && typeof clientInfo.transport.close === 'function') {
+                await clientInfo.transport.close().catch(() => { })
+            }
+
+            // 清理
+            this.handleServerDisconnect(serverName)
+
+            logger.info(`[MCP] 已断开服务器: ${serverName}`)
+            return true
+        } catch (error) {
+            logger.error(`[MCP] 断开服务器 ${serverName} 失败:`, error)
+            return false
+        }
+    }
+
+    /**
      * 断开所有连接
      */
     async disconnectAll() {
-        for (const [name, { client }] of this.clients) {
-            try {
-                await client.close()
-                logger.info(`[MCP] 已断开服务器: ${name}`)
-            } catch (error) {
-                logger.error(`[MCP] 断开服务器 ${name} 失败:`, error)
-            }
+        const serverNames = Array.from(this.clients.keys())
+
+        for (const serverName of serverNames) {
+            await this.disconnectServer(serverName)
         }
+
         this.clients.clear()
         this.tools.clear()
         this.serverConfigs.clear()
+
+        logger.info(`[MCP] 已断开所有服务器连接`)
     }
 
     /**
@@ -273,8 +424,8 @@ export class MCPClientManager {
      */
     getToolsDescription() {
         const descriptions = []
-        for (const [name, { toolInfo }] of this.tools) {
-            descriptions.push(`mcp_${name}: ${toolInfo.description || "无描述"}`)
+        for (const [name, { toolInfo, serverName }] of this.tools) {
+            descriptions.push(`mcp_${name}: [${serverName}] ${toolInfo.description || "无描述"}`)
         }
         return descriptions.join("\n")
     }
@@ -313,36 +464,22 @@ export class MCPClientManager {
      * @param {string} serverName - 服务器名
      */
     async reconnectServer(serverName) {
-        const serverInfo = this.clients.get(serverName)
-        if (!serverInfo) {
-            logger.warn(`[MCP] 服务器 ${serverName} 不存在`)
+        const clientInfo = this.clients.get(serverName)
+        const config = clientInfo?.config || this.serverConfigs.get(serverName)
+
+        if (!config) {
+            logger.warn(`[MCP] 服务器 ${serverName} 配置不存在`)
             return false
         }
 
-        const { config } = serverInfo
-
         // 先断开
-        try {
-            await serverInfo.client.close()
-        } catch (e) {
-            // 忽略断开错误
-        }
-
-        // 移除旧的工具
-        for (const [toolName, { serverName: sn }] of this.tools) {
-            if (sn === serverName) {
-                this.tools.delete(toolName)
-            }
-        }
-
-        this.clients.delete(serverName)
-        this.serverConfigs.delete(serverName)
+        await this.disconnectServer(serverName)
 
         // 重新连接
         return await this.connectServer(serverName, config)
     }
 
-    // ==================== 新增方法 ====================
+    // ==================== 系统提示词相关方法 ====================
 
     /**
      * 获取所有已启用且已连接的MCP服务器的系统提示词
@@ -376,7 +513,7 @@ export class MCPClientManager {
                     }
                 }
 
-                // 关键词过滤（如果设置了关键词，只有消息包含关键词时才添加）
+                // 关键词过滤
                 if (conditions.keywords && context.message) {
                     const hasKeyword = conditions.keywords.some(kw =>
                         context.message.toLowerCase().includes(kw.toLowerCase())
@@ -387,7 +524,7 @@ export class MCPClientManager {
                 }
             }
 
-            prompts.push(config.systemPrompt.trim())
+            prompts.push(`【${serverName}】\n${config.systemPrompt.trim()}`)
         }
 
         if (prompts.length === 0) {
@@ -429,6 +566,7 @@ export class MCPClientManager {
         for (const [serverName, config] of this.serverConfigs) {
             info.push({
                 name: serverName,
+                type: config.type || 'stdio',
                 description: config.description || "",
                 enabled: config.enabled,
                 connected: config.connected,
@@ -472,7 +610,9 @@ export class MCPClientManager {
 
         const lines = []
         for (const [server, tools] of serverTools) {
-            lines.push(`${server}: ${tools.length}个工具 (${tools.join(", ")})`)
+            const config = this.serverConfigs.get(server)
+            const type = config?.type || 'stdio'
+            lines.push(`${server} (${type}): ${tools.length}个工具 (${tools.join(", ")})`)
         }
 
         return lines.join("\n") || "无已加载的MCP工具"
@@ -553,9 +693,10 @@ export class MCPClientManager {
             servers: []
         }
 
-        for (const [serverName, { client }] of this.clients) {
+        for (const [serverName, { client, type }] of this.clients) {
             const serverReport = {
                 name: serverName,
+                type: type,
                 status: "unknown",
                 toolCount: 0
             }
@@ -574,6 +715,43 @@ export class MCPClientManager {
         }
 
         return report
+    }
+
+    /**
+     * 获取连接状态摘要
+     * @returns {string}
+     */
+    getStatusSummary() {
+        const servers = this.getServersInfo()
+
+        if (servers.length === 0) {
+            return "当前没有配置任何 MCP 服务器"
+        }
+
+        const lines = ["【MCP 服务器状态】"]
+
+        for (const server of servers) {
+            const statusIcon = server.connected ? "✅" : "❌"
+            const typeIcon = server.type === 'sse' ? "🌐" : "💻"
+
+            lines.push(`\n${statusIcon} ${server.name} ${typeIcon}`)
+            lines.push(`   类型: ${server.type}`)
+            lines.push(`   工具数: ${server.toolCount}`)
+
+            if (server.description) {
+                lines.push(`   描述: ${server.description}`)
+            }
+
+            if (server.error) {
+                lines.push(`   错误: ${server.error}`)
+            }
+
+            if (server.toolNames?.length > 0) {
+                lines.push(`   工具: ${server.toolNames.slice(0, 5).join(", ")}${server.toolNames.length > 5 ? "..." : ""}`)
+            }
+        }
+
+        return lines.join("\n")
     }
 }
 
