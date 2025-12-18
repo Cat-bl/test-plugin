@@ -95,8 +95,8 @@ export class GoogleImageEditTool extends AbstractTool {
             const history = [{ role: "user", content: imgurls }];
             try {
 
-                const apiUrl = 'https://api.kuai.host/v1/chat/completions'
-                const apiKey = 'sk-2BiyynWpQKN3lqAQR6xSIKSqAd0coVTg7ClrRJpxcqM3GR2f'
+                const apiUrl = 'https://api.5202030.xyz/v1/chat/completions'
+                const apiKey = ' sk-8Z5R30xCYM7hPsV_pa-mFw7zVapjlr0RJHjCUCKPjgowpGeNwoGv68kSIXk'
                 //  const apiKey = await this.getZaiKey() 
 
                 const requestData = {
@@ -193,8 +193,13 @@ export class GoogleImageEditTool extends AbstractTool {
                         throw new Error("未接收到有效内容");
                     }
                     if (imageUrl.includes("base64")) {
-                        const base64Data = imageUrl.split("[image]")[1];
-                        const trueBase64Data = base64Data.split(",")[1];
+                        const base64Data = imageUrl.split("[image1]")[1] || imageUrl.split("[image]")[1];
+                        let trueBase64Data
+                        if (base64Data) {
+                            trueBase64Data = base64Data.split(",")[1];
+                        } else {
+                            trueBase64Data = imageUrl
+                        }
                         processedImageUrl = `base64://${trueBase64Data}`; // 只取纯base64部分
                     } else if (imageUrl.includes("https")) {
                         const base64Data = imageUrl.split("[image1]")[1] || imageUrl.split("[image]")[1];

@@ -90,8 +90,8 @@ export class BananaTool extends AbstractTool {
 
 
     try {
-      const apiUrl = 'https://api.kuai.host/v1/chat/completions'
-      const apiKey = 'sk-2BiyynWpQKN3lqAQR6xSIKSqAd0coVTg7ClrRJpxcqM3GR2f'
+      const apiUrl = 'https://api.5202030.xyz/v1/chat/completions'
+      const apiKey = ' sk-8Z5R30xCYM7hPsV_pa-mFw7zVapjlr0RJHjCUCKPjgowpGeNwoGv68kSIXk'
       //  const apiKey = await this.getZaiKey() 
       const history = [{ role: "user", content: imgurls }];
       const requestData = {
@@ -155,8 +155,14 @@ export class BananaTool extends AbstractTool {
         imageUrl = accumulatedContent;
         let processedImageUrl
         if (imageUrl.includes("base64")) {
-          const base64Data = imageUrl.split("[image]")[1];
-          const trueBase64Data = base64Data.split(",")[1];
+          const base64Data = imageUrl.split("[image1]")[1] || imageUrl.split("[image]")[1];
+          let trueBase64Data
+          if (base64Data) {
+            trueBase64Data = base64Data.split(",")[1];
+          } else {
+            trueBase64Data = imageUrl
+          }
+
           //  logger.error(base64Data)
           processedImageUrl = `base64://${trueBase64Data}`; // 只取纯base64部分
         } else if (imageUrl.includes("https")) {
