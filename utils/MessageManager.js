@@ -17,10 +17,10 @@ export class MessageManager {
     this.GROUP_MAX_MESSAGES = options.groupMaxMessages || 100;      // 群聊消息上限(可由用户配置)
     this.MESSAGE_MAX_LENGTH = options.messageMaxLength || 200;     // 单条消息最大长度（不计图片/文件链接）
     this.CACHE_EXPIRE_DAYS = options.cacheExpireDays || 1;         // 缓存过期时间（天）
-    
+
     // 固定参数
     this.REDIS_KEY_PREFIX = 'ytbot:messages:';                     // Redis key前缀
-    
+
     // 初始化定时任务
     // this.initScheduledTasks();
   }
@@ -177,11 +177,11 @@ export class MessageManager {
   }
 
   /**
-   * 格式化消息内容
-   * 图片/文件的链接长度不计入总长度
-   * @param {Object} message 消息对象
-   * @returns {Promise<string>} 格式化后的消息内容
-   */
+ * 格式化消息内容
+ * 图片/文件的链接长度不计入总长度
+ * @param {Object} message 消息对象
+ * @returns {Promise<string>} 格式化后的消息内容
+ */
   async formatMessageContent(message) {
     const isGroup = message.message_type === 'group';
     let content = '';
@@ -242,13 +242,24 @@ export class MessageManager {
 
         // 计算不包含URL的部分长度
         const actionLength = action.length;
+        const separatorLength = content.length > 0 ? 1 : 0;
 
-        // 计算添加分隔符的长度
-        const separatorLength = content.length > 0 ? 1 : 0; // '，' 的长度为1
-
-        // 检查是否超出最大长度
+        // 修改：如果超出最大长度，截断而不是直接变成 ...
         if (totalLength + separatorLength + actionLength > this.MESSAGE_MAX_LENGTH) {
-          content += '...';
+          const remainingLength = this.MESSAGE_MAX_LENGTH - totalLength - separatorLength - 3; // 3 是 "..." 的长度
+
+          if (remainingLength > 10) {
+            // 还有足够空间，截断当前消息
+            if (separatorLength) {
+              content += '，';
+            }
+            content += action.substring(0, remainingLength) + '...';
+          } else if (content.length === 0) {
+            // 第一条消息就超长，直接截断
+            content = action.substring(0, this.MESSAGE_MAX_LENGTH - 3) + '...';
+          } else {
+            content += '...';
+          }
           break;
         }
 
@@ -259,7 +270,7 @@ export class MessageManager {
 
         // 添加动作描述
         content += action;
-        totalLength += actionLength;
+        totalLength += separatorLength + actionLength;
 
         // 添加URL部分，不计入总长度
         if (urlPart) {
@@ -275,10 +286,9 @@ export class MessageManager {
         urlPart = urlMatch[0];
         action = action.replace(urlPart, '');
       }
-      const actionLength = action.length;
 
-      if (actionLength > this.MESSAGE_MAX_LENGTH) {
-        content = action.substring(0, this.MESSAGE_MAX_LENGTH) + '...';
+      if (action.length > this.MESSAGE_MAX_LENGTH) {
+        content = action.substring(0, this.MESSAGE_MAX_LENGTH - 3) + '...';
       } else {
         content = action;
       }
@@ -290,6 +300,7 @@ export class MessageManager {
 
     return content;
   }
+
 
   /**
    * 格式化单条消息记录
@@ -355,10 +366,10 @@ export class MessageManager {
       messages.unshift(await this.formatMessage(e)); // 在数组开头添加新消息
 
       // 使用自定义群聊消息上限或默认值
-      const maxMessages = isGroup 
-        ? (options.groupMaxMessages || this.GROUP_MAX_MESSAGES) 
+      const maxMessages = isGroup
+        ? (options.groupMaxMessages || this.GROUP_MAX_MESSAGES)
         : this.PRIVATE_MAX_MESSAGES;
-        
+
       if (messages.length > maxMessages) {
         messages = messages.slice(0, maxMessages); // 保留最新的消息
       }

@@ -16,7 +16,8 @@ export class MessageRecordPlugin extends plugin {
             rule: [
                 {
                     reg: '^#查看(群聊|私聊)记录\\s*(\\d+)?',
-                    fnc: 'showHistory'
+                    fnc: 'showHistory',
+                    permission: 'master'
                 },
                 {
                     reg: '^#清除(群聊|私聊)记录',

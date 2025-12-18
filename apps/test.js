@@ -56,7 +56,7 @@ function initializeSharedState(config) {
     messageManager: new MessageManager({
       privateMaxMessages: 100,
       groupMaxMessages: config.groupMaxMessages,
-      messageMaxLength: 200,
+      messageMaxLength: 2000,
       cacheExpireDays: config.groupChatMemoryDays
     }),
     toolInstances: {
@@ -708,10 +708,47 @@ ${mcpPrompts}
     // 格式化中间消息
     const formattedLines = []
 
-    for (const msg of middle) {
+    // 用于临时存储工具调用结果
+    let pendingToolResults = []
+
+    for (let i = 0; i < middle.length; i++) {
+      const msg = middle[i]
+
       if (msg.role === "user" && msg.content) {
-        formattedLines.push(msg.content)
+        if (!msg.content.startsWith("【系统提示】")) {
+          formattedLines.push(msg.content)
+        }
+      } else if (msg.role === "tool") {
+        // 处理工具调用结果
+        const toolContent = msg.content || ''
+        const toolName = msg.name || '未知工具'
+
+        // 确保内容不为空
+        if (toolContent && toolContent.trim() !== '') {
+          const toolResult = toolContent.length > 300
+            ? toolContent.substring(0, 300) + "...(结果已截断)"
+            : toolContent
+          pendingToolResults.push(`此处为调用工具的结果，不计算到聊天记录中：[调用工具:${toolName}] 调用结果:${toolResult}`)
+        }
+      } else if (msg.role === "assistant" && msg.content) {
+        if (!msg.content.startsWith("【系统提示】")) {
+          // 先添加工具调用结果
+          if (pendingToolResults.length > 0) {
+            formattedLines.push(...pendingToolResults)
+            pendingToolResults = []
+          }
+          // 再添加 Bot 回复
+          const assistantContent = msg.content.length > 200
+            ? msg.content.substring(0, 200) + "..."
+            : msg.content
+          formattedLines.push(`[Bot回复]: ${assistantContent}`)
+        }
       }
+    }
+
+    // 处理剩余的工具结果
+    if (pendingToolResults.length > 0) {
+      formattedLines.push(...pendingToolResults)
     }
 
     const formatted = formattedLines.join("\n")
@@ -774,6 +811,9 @@ ${mcpPrompts}
     let currentMessages = [...groupUserMessages]
     let round = 0
 
+    // 用于收集所有轮次的工具调用结果
+    const allToolResults = []
+
     while (currentMessage.tool_calls?.length && round < MAX_TOOL_ROUNDS) {
       round++
       logger.info(`[工具调用] 第 ${round} 轮，共 ${currentMessage.tool_calls.length} 个工具`)
@@ -810,10 +850,12 @@ ${mcpPrompts}
           }
         }
 
+        // 在 try 块外部声明 result
+        let result = null
+
         try {
           logger.info(`[工具调用] ${isMCPTool ? "MCP" : "本地"} - ${toolName}: ${JSON.stringify(params)}`)
 
-          let result
           if (isMCPTool) {
             const realToolName = mcpManager.getRealToolName(toolName)
             const mcpResult = await limit(() => mcpManager.executeTool(realToolName, params))
@@ -826,20 +868,49 @@ ${mcpPrompts}
             result = await this.executeTool(this.toolInstances[toolName], params, e, limit)
           }
 
-          if (result) {
+          // 确保 result 是字符串
+          if (result !== null && result !== undefined) {
+            const resultStr = typeof result === "string" ? result : JSON.stringify(result)
+
+            // 只有当结果不为空时才添加
+            if (resultStr && resultStr.trim() !== '') {
+              validResults.push({
+                toolCall,
+                toolName,
+                result: resultStr
+              })
+              logger.info(`[工具调用] ${toolName} 执行成功，结果长度: ${resultStr.length}`)
+            } else {
+              logger.warn(`[工具调用] ${toolName} 返回空结果`)
+              validResults.push({
+                toolCall,
+                toolName,
+                result: `工具 ${toolName} 执行完成`
+              })
+            }
+          } else {
+            logger.warn(`[工具调用] ${toolName} 返回 null/undefined`)
             validResults.push({
               toolCall,
               toolName,
-              result: typeof result === "string" ? result : JSON.stringify(result)
+              result: `工具 ${toolName} 执行完成`
             })
           }
         } catch (error) {
           logger.error(`[工具执行失败] ${toolName}:`, error)
-          validResults.push({ toolCall, toolName, result: `执行出错: ${error.message}` })
+          validResults.push({
+            toolCall,
+            toolName,
+            result: `执行出错: ${error.message}`
+          })
         }
       }
 
       if (validResults.length === 0) break
+
+      // 收集所有工具调用结果
+      allToolResults.push(...validResults)
+      logger.info(`[工具调用] 本轮收集 ${validResults.length} 个结果，总计 ${allToolResults.length} 个`)
 
       session.toolName = validResults[validResults.length - 1]?.toolName
 
@@ -848,10 +919,10 @@ ${mcpPrompts}
       currentMessages = [
         ...cleanedMessages,
         ...validResults.map(({ toolCall, toolName, result }) => ({
-          role: "tool",
-          tool_call_id: toolCall.id,
-          name: toolName,
-          content: result
+          role: "assistant",
+          // tool_call_id: toolCall.id,
+          // name: toolName,
+          content: `工具${toolName}调用的结果${result}`
         })),
         {
           role: "user",
@@ -867,6 +938,10 @@ ${mcpPrompts}
       currentMessage = nextResponse.choices[0].message
 
       if (!currentMessage.tool_calls?.length && currentMessage.content) {
+        // 保存工具调用结果到 session
+        session.toolResults = allToolResults
+        logger.info(`[工具调用] 保存 ${allToolResults.length} 个工具结果到 session`)
+
         await this.handleTextResponse(
           currentMessage.content,
           e,
@@ -882,6 +957,10 @@ ${mcpPrompts}
     if (round >= MAX_TOOL_ROUNDS) {
       logger.warn(`[工具调用] 达到最大轮数 ${MAX_TOOL_ROUNDS}，强制结束`)
     }
+
+    // 保存工具调用结果到 session
+    session.toolResults = allToolResults
+    logger.info(`[工具调用] 最终保存 ${allToolResults.length} 个工具结果到 session`)
 
     const finalRequest = this.buildRequestData(currentMessages, [], "none")
     const finalResponse = await this.retryRequest(limit, finalRequest, session.toolContent, 1, session.toolName)
@@ -930,18 +1009,67 @@ ${mcpPrompts}
     const output = await this.processToolSpecificMessage(content, toolName)
     await limit(() => this.sendSegmentedMessage(e, output))
 
+    const now = Math.floor(Date.now() / 1000)
+
     try {
+      // 1. 先记录工具调用结果（如果有）
+      if (session.toolResults?.length) {
+        for (let i = 0; i < session.toolResults.length; i++) {
+          const { toolCall, toolName: tName, result } = session.toolResults[i]
+
+          // 严格检查 result
+          const resultStr = String(result || '').trim()
+          if (!resultStr || resultStr === 'undefined' || resultStr === 'null') {
+            logger.warn(`[工具记录] 工具 ${tName} 的结果无效，跳过`)
+            continue
+          }
+
+          const formattedResult = resultStr.length > 500
+            ? resultStr.substring(0, 500) + "...(已截断)"
+            : resultStr
+
+          const toolMessage = `此处为调用工具的结果，不计算到聊天记录中：[调用工具:${tName}] 调用结果:${formattedResult}`
+
+          logger.info(`[工具记录] 准备记录: ${toolMessage.substring(0, 100)}...`)
+
+          await limit(() => this.messageManager.recordMessage({
+            message_type: e.message_type,
+            group_id: e.group_id,
+            time: now + i,
+            message: [{ type: "text", text: toolMessage }],
+            source: "tool",
+            self_id: Bot.uin,
+            sender: { user_id: Bot.uin, nickname: Bot.nickname, card: Bot.nickname, role: "member" }
+          }))
+        }
+      }
+
+      // 2. 再记录 Bot 的回复
       await limit(() => this.messageManager.recordMessage({
         message_type: e.message_type,
         group_id: e.group_id,
-        time: Math.floor(Date.now() / 1000),
+        time: now + (session.toolResults?.length || 0) + 1,
         message: [{ type: "text", text: content }],
         source: "send",
         self_id: Bot.uin,
         sender: { user_id: Bot.uin, nickname: Bot.nickname, card: Bot.nickname, role: "member" }
       }))
     } catch (error) {
-      logger.error("[MessageRecord] 记录Bot消息失败：", error)
+      logger.error("[MessageRecord] 记录消息失败：", error)
+    }
+
+    // 保存到 messages 数组
+    if (session.toolResults?.length) {
+      for (const { toolCall, toolName: tName, result } of session.toolResults) {
+        if (result && result.trim() !== '') {
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall?.id || randomUUID(),
+            name: tName,
+            content: result
+          })
+        }
+      }
     }
 
     messages.push({ role: "assistant", content })
