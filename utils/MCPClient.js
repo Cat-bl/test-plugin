@@ -2,6 +2,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 
 export class MCPClientManager {
     constructor() {
@@ -27,16 +28,26 @@ export class MCPClientManager {
             const transportType = (config.type || 'stdio').toLowerCase()
             let transport
 
-            if (transportType === 'sse') {
-                // SSE 远程服务器
-                transport = this.createSSETransport(serverName, config)
-                logger.info(`[MCP] 正在连接 SSE 服务器: ${serverName}`)
-            } else {
-                // stdio 本地服务器
-                transport = this.createStdioTransport(serverName, config)
-                logger.info(`[MCP] 正在连接 stdio 服务器: ${serverName}`)
+            switch (transportType) {
+                case 'sse':
+                    transport = this.createSSETransport(serverName, config)
+                    logger.info(`[MCP] 正在连接 SSE 服务器: ${serverName}`)
+                    break
+                case 'streamable-http':
+                case 'http':
+                    transport = this.createStreamableHTTPTransport(serverName, config)
+                    logger.info(`[MCP] 正在连接 Streamable HTTP 服务器: ${serverName}`)
+                    break
+                case 'websocket':
+                case 'ws':
+                    transport = this.createWebSocketTransport(serverName, config)
+                    logger.info(`[MCP] 正在连接 WebSocket 服务器: ${serverName}`)
+                    break
+                case 'stdio':
+                default:
+                    transport = this.createStdioTransport(serverName, config)
+                    logger.info(`[MCP] 正在连接 stdio 服务器: ${serverName}`)
             }
-
             // 创建MCP客户端
             const client = new Client({
                 name: "yunzai-mcp-client",
@@ -121,6 +132,47 @@ export class MCPClientManager {
 
         return transport
     }
+
+    /**
+     * 创建 Streamable HTTP 传输（用于 mcpmarket.cn 等服务）
+     * @param {string} serverName - 服务器名
+     * @param {object} config - 配置
+     */
+    createStreamableHTTPTransport(serverName, config) {
+        if (!config.baseUrl) {
+            throw new Error(`Streamable HTTP 服务器 ${serverName} 需要配置 baseUrl`)
+        }
+
+        // 构建请求头 - Streamable HTTP 需要特定的 Content-Type 和 Accept
+        const headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream"
+        }
+
+        // 合并自定义 headers
+        if (config.headers && typeof config.headers === 'object') {
+            Object.entries(config.headers).forEach(([key, value]) => {
+                if (value !== undefined && value !== null && value !== '') {
+                    headers[key] = String(value).replace(/^["']|["']$/g, '')
+                }
+            })
+        }
+
+        logger.info(`[MCP] Streamable HTTP 连接配置: ${config.baseUrl}`)
+
+        // 创建 Streamable HTTP 传输
+        const transport = new StreamableHTTPClientTransport(
+            new URL(config.baseUrl),
+            {
+                requestInit: {
+                    headers
+                }
+            }
+        )
+
+        return transport
+    }
+
 
     /**
      * 创建 stdio 传输（本地服务器）
@@ -732,7 +784,14 @@ export class MCPClientManager {
 
         for (const server of servers) {
             const statusIcon = server.connected ? "✅" : "❌"
-            const typeIcon = server.type === 'sse' ? "🌐" : "💻"
+            const typeIcon = {
+                'sse': '🌐',
+                'streamable-http': '🔗',
+                'http': '🔗',
+                'websocket': '🔌',
+                'ws': '🔌',
+                'stdio': '💻'
+            }[server.type] || '📦'
 
             lines.push(`\n${statusIcon} ${server.name} ${typeIcon}`)
             lines.push(`   类型: ${server.type}`)
@@ -753,6 +812,108 @@ export class MCPClientManager {
 
         return lines.join("\n")
     }
+
+    /**
+ * 创建 WebSocket 传输（自定义实现）
+ * @param {string} serverName - 服务器名
+ * @param {object} config - 配置
+ */
+    createWebSocketTransport(serverName, config) {
+        if (!config.baseUrl) {
+            throw new Error(`WebSocket 服务器 ${serverName} 需要配置 baseUrl`)
+        }
+
+        // 将 http(s) 转换为 ws(s)
+        let wsUrl = config.baseUrl
+        if (wsUrl.startsWith('http://')) {
+            wsUrl = wsUrl.replace('http://', 'ws://')
+        } else if (wsUrl.startsWith('https://')) {
+            wsUrl = wsUrl.replace('https://', 'wss://')
+        }
+
+        logger.info(`[MCP] WebSocket 连接配置: ${wsUrl}`)
+
+        // 自定义 WebSocket 传输实现
+        const transport = {
+            _ws: null,
+            _messageHandlers: new Set(),
+            _closeHandlers: new Set(),
+            _errorHandlers: new Set(),
+
+            async start() {
+                return new Promise((resolve, reject) => {
+                    const headers = {}
+                    if (config.headers) {
+                        Object.entries(config.headers).forEach(([key, value]) => {
+                            if (value) headers[key] = String(value)
+                        })
+                    }
+
+                    this._ws = new WebSocket(wsUrl, { headers })
+
+                    this._ws.on('open', () => {
+                        logger.info(`[MCP] WebSocket 已连接: ${serverName}`)
+                        resolve()
+                    })
+
+                    this._ws.on('message', (data) => {
+                        try {
+                            const message = JSON.parse(data.toString())
+                            this._messageHandlers.forEach(handler => handler(message))
+                        } catch (e) {
+                            logger.error(`[MCP] WebSocket 消息解析失败:`, e)
+                        }
+                    })
+
+                    this._ws.on('close', () => {
+                        this._closeHandlers.forEach(handler => handler())
+                    })
+
+                    this._ws.on('error', (error) => {
+                        this._errorHandlers.forEach(handler => handler(error))
+                        reject(error)
+                    })
+
+                    // 超时处理
+                    setTimeout(() => {
+                        if (this._ws.readyState !== WebSocket.OPEN) {
+                            reject(new Error('WebSocket 连接超时'))
+                        }
+                    }, config.timeout || 30000)
+                })
+            },
+
+            async close() {
+                if (this._ws) {
+                    this._ws.close()
+                    this._ws = null
+                }
+            },
+
+            async send(message) {
+                if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+                    this._ws.send(JSON.stringify(message))
+                } else {
+                    throw new Error('WebSocket 未连接')
+                }
+            },
+
+            onmessage(handler) {
+                this._messageHandlers.add(handler)
+            },
+
+            onclose(handler) {
+                this._closeHandlers.add(handler)
+            },
+
+            onerror(handler) {
+                this._errorHandlers.add(handler)
+            }
+        }
+
+        return transport
+    }
+
 }
 
 // 单例导出
