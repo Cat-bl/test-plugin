@@ -725,8 +725,8 @@ ${mcpPrompts}
 
         // 确保内容不为空
         if (toolContent && toolContent.trim() !== '') {
-          const toolResult = toolContent.length > 300
-            ? toolContent.substring(0, 300) + "...(结果已截断)"
+          const toolResult = toolContent.length > this.messageManager.MESSAGE_MAX_LENGTH
+            ? toolContent.substring(0, this.messageManager.MESSAGE_MAX_LENGTH) + "...(结果已截断)"
             : toolContent
           pendingToolResults.push(`此处为调用工具的结果，不计算到聊天记录中：[调用工具:${toolName}] 调用结果:${toolResult}`)
         }
