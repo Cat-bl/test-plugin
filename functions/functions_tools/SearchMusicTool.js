@@ -105,10 +105,13 @@ export class SearchMusicTool extends AbstractTool {
     if ((data.sa === 0 && data.pay?.price_track === 0) || data.pay?.pay_play === 1 || this.highQuality) {
       try {
         const quality = [
-          ['size_320mp3', 'M800', 'mp3'],
-          ['size_192ogg', 'O600', 'ogg'],
-          ['size_128mp3', 'M500', 'mp3'],
-          ['size_96aac', 'C400', 'm4a']
+          ['size_flac', 'F000', 'flac'],           // FLAC 无损 (约 800-1000kbps)
+          ['size_hires', 'RS01', 'flac'],          // Hi-Res 高解析度 (24bit)
+          ['size_96ogg', 'O800', 'ogg'],           // 96k OGG (如果有)
+          ['size_320mp3', 'M800', 'mp3'],          // 320kbps MP3
+          ['size_192ogg', 'O600', 'ogg'],          // 192kbps OGG
+          ['size_128mp3', 'M500', 'mp3'],          // 128kbps MP3
+          ['size_96aac', 'C400', 'm4a']            // 96kbps AAC
         ];
 
         const mediaMid = data.file?.media_mid;
