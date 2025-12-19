@@ -56,7 +56,7 @@ function initializeSharedState(config) {
     messageManager: new MessageManager({
       privateMaxMessages: 100,
       groupMaxMessages: config.groupMaxMessages,
-      messageMaxLength: 2000,
+      messageMaxLength: 9999,
       cacheExpireDays: config.groupChatMemoryDays
     }),
     toolInstances: {
