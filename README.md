@@ -32,7 +32,7 @@ pnpm install
 ### 列出mcp工具列表
 #mcp 列表
 
-# mcp-servers配置说明
+# mcp-servers.yaml配置说明
 已实现MCP官方3种标准连接方式（Stdio、SSE、Streamable HTTP）设置type即可("sse","stdio","http")，默认stdio。例sse链接：
 ```yaml
 ChatPPT:
