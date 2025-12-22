@@ -1,5 +1,5 @@
 import { JinyanTool } from "../functions/functions_tools/JinyanTool.js"
-import { FreeSearchTool } from "../functions/functions_tools/SearchInformationTool.js"
+import { SearchInformationTool } from "../functions/functions_tools/SearchInformationTool.js"
 import { SearchVideoTool } from "../functions/functions_tools/SearchVideoTool.js"
 import { SearchMusicTool } from "../functions/functions_tools/SearchMusicTool.js"
 import { EmojiSearchTool } from "../functions/functions_tools/EmojiSearchTool.js"
@@ -61,7 +61,7 @@ function initializeSharedState(config) {
     }),
     toolInstances: {
       jinyanTool: new JinyanTool(),
-      freeSearchTool: new FreeSearchTool(),
+      searchInformationTool: new SearchInformationTool(),
       searchVideoTool: new SearchVideoTool(),
       searchMusicTool: new SearchMusicTool(),
       emojiSearchTool: new EmojiSearchTool(),
@@ -768,7 +768,7 @@ ${mcpPrompts}
     if (!content) return "执行完成"
     let result = typeof content === "string" ? content : JSON.stringify(content)
     const maxLength = {
-      freeSearchTool: 500,
+      searchInformationTool: 500,
       webParserTool: 500,
       chatHistoryTool: 800,
       default: 300

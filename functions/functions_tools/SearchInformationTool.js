@@ -6,10 +6,10 @@ import path from "path";
 /**
  * Search 工具类，用于自由搜索并控制返回结果的大小
  */
-export class FreeSearchTool extends AbstractTool {
+export class SearchInformationTool extends AbstractTool {
   constructor() {
     super();
-    this.name = 'freeSearchTool';
+    this.name = 'searchInformationTool';
     this.description = '请求外部 API 进行自由搜索，检索结果，对于需要进行搜索或需要实时数据信息的时候使用';
     this.parameters = {
       type: "object",
