@@ -23,7 +23,7 @@ class RConfig extends Base{
     updateField(name, field, value) {
         let config = this.getConfig(name);
         config[field] = value;
-        logger.mark(`[test-plugin][修改配置项][${name}][${field}]修改为：${value}`);
+        logger.mark(`[bl-chat-plugin][修改配置项][${name}][${field}]修改为：${value}`);
         this.saveAllConfig(name, config);
     }
 
@@ -56,7 +56,7 @@ class RConfig extends Base{
             const previousContent = this.previousContent.get(name);
 
             if (!_.isEqual(previousContent, currentContent)) {
-                logger.mark(`[test-plugin][配置文件]：${name}已经被重置`);
+                logger.mark(`[bl-chat-plugin][配置文件]：${name}已经被重置`);
                 this.previousContent.set(name, currentContent); // 更新之前的内容
             }
         });

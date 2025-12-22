@@ -35,7 +35,7 @@ export class MessageRecordPlugin extends plugin {
                 },
             ]
         });
-        this.configPath = './plugins/test-plugin/config/message.yaml';
+        this.configPath = './plugins/bl-chat-plugin/config/message.yaml';
         this.messageManager = new MessageManager();
     }
 

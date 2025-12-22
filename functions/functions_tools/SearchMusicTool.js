@@ -237,7 +237,7 @@ export class SearchMusicTool extends AbstractTool {
 
   // 加载配置
   loadConfig() {
-    const configPath = path.join(process.cwd(), 'plugins/test-plugin/config/message.yaml');
+    const configPath = path.join(process.cwd(), 'plugins/bl-chat-plugin/config/message.yaml');
     return YAML.parse(fs.readFileSync(configPath, 'utf8')).pluginSettings;
   }
 }

@@ -115,7 +115,7 @@ export class SearchInformationTool extends AbstractTool {
 
     try {
       // 配置路径
-      const configPath = path.join(process.cwd(), 'plugins/test-plugin/config/message.yaml');
+      const configPath = path.join(process.cwd(), 'plugins/bl-chat-plugin/config/message.yaml');
       const configFile = fs.readFileSync(configPath, 'utf8');
       const config = YAML.parse(configFile).pluginSettings;
       

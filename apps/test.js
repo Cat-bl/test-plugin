@@ -215,8 +215,8 @@ export class ExamplePlugin extends plugin {
   }
 
   ensureConfigFiles() {
-    const configDir = path.join(process.cwd(), "plugins/test-plugin/config")
-    const configDefaultDir = path.join(process.cwd(), "plugins/test-plugin/config_default")
+    const configDir = path.join(process.cwd(), "plugins/bl-chat-plugin/config")
+    const configDefaultDir = path.join(process.cwd(), "plugins/bl-chat-plugin/config_default")
 
     const configFiles = ["message.yaml", "mcp-servers.yaml"]
 
@@ -251,8 +251,8 @@ export class ExamplePlugin extends plugin {
   initConfig() {
     this.ensureConfigFiles()
 
-    const configDir = path.join(process.cwd(), "plugins/test-plugin/config")
-    const configDefaultDir = path.join(process.cwd(), "plugins/test-plugin/config_default")
+    const configDir = path.join(process.cwd(), "plugins/bl-chat-plugin/config")
+    const configDefaultDir = path.join(process.cwd(), "plugins/bl-chat-plugin/config_default")
     const configPath = path.join(configDir, "message.yaml")
     const defaultConfigPath = path.join(configDefaultDir, "message.yaml")
 
@@ -1251,8 +1251,8 @@ ${mcpPrompts}
    */
   async initMCP() {
     try {
-      const configDir = path.join(process.cwd(), "plugins/test-plugin/config")
-      const configDefaultDir = path.join(process.cwd(), "plugins/test-plugin/config_default")
+      const configDir = path.join(process.cwd(), "plugins/bl-chat-plugin/config")
+      const configDefaultDir = path.join(process.cwd(), "plugins/bl-chat-plugin/config_default")
       const configPath = path.join(configDir, "mcp-servers.yaml")
       const defaultConfigPath = path.join(configDefaultDir, "mcp-servers.yaml")
 

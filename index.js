@@ -5,11 +5,11 @@ if (!global.segment) {
     global.segment = (await import("oicq")).segment
 }
 // 加载名称
-const packageJsonPath = path.join('./plugins', 'test-plugin', 'package.json');
+const packageJsonPath = path.join('./plugins', 'bl-chat-plugin', 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 const pluginName = packageJson.name;
 // 初始化输出
-logger.info(logger.yellow(`（test-plugin）初始化`));
+logger.info(logger.yellow(`（bl-chat-plugin）初始化`));
 
 const files = fs.readdirSync(`./plugins/${pluginName}/apps`).filter(file => file.endsWith(".js"));
 

@@ -52,9 +52,9 @@ export class QQinfo extends plugin {
         // const data = {
         //     saveId: "qqinfo",
         //     tplFile:
-        //         "./plugins/test-plugin/resources/html/qqinfo/qqinfo.html",
+        //         "./plugins/bl-chat-plugin/resources/html/qqinfo/qqinfo.html",
         //     pluResPath:
-        //         "C:/bot/Miao-Yunzai/plugins/test-plugin/resources/",
+        //         "C:/bot/Miao-Yunzai/plugins/bl-chat-plugin/resources/",
         //     ...DATA_JSON
         // }
         const data = await new Qqinfo(e).getData(DATA_JSON);

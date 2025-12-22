@@ -87,7 +87,7 @@ export class GoogleImageEditTool extends AbstractTool {
     // ========== 工具方法 ==========
 
     loadConfig() {
-        const configPath = path.join(process.cwd(), 'plugins/test-plugin/config/message.yaml');
+        const configPath = path.join(process.cwd(), 'plugins/bl-chat-plugin/config/message.yaml');
         return YAML.parse(fs.readFileSync(configPath, 'utf8')).pluginSettings;
     }
 

@@ -1,5 +1,5 @@
 {
-  "name": "test-plugin",
+  "name": "bl-chat-plugin",
   "description": "测试",
   "type": "module",
   "version": "0.0.1",
@@ -11,7 +11,7 @@
   },
   "keywords": [
     "Yunzai-Bot",
-    "y-test-plugin"
+    "bl-chat-plugin"
   ],
   "author": "test",
   "license": "MIT",

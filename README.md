@@ -12,8 +12,8 @@
 在Yunzai根目录下执行：
 
 ```bash
-git clone --depth=1 https://github.com/Cat-bl/test-plugin plugins/test-plugin
-cd plugins/test-plugin
+git clone --depth=1 https://github.com/Cat-bl/bl-chat-plugin plugins/bl-chat-plugin
+cd plugins/bl-chat-plugin
 pnpm install
 ```
 

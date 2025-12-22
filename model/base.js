@@ -3,7 +3,7 @@ import fs from "fs";
 
 export default class Base {
     static pluginName = (() => {
-        const packageJsonPath = path.join('./plugins', 'test-plugin', 'package.json');
+        const packageJsonPath = path.join('./plugins', 'bl-chat-plugin', 'package.json');
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
         return packageJson.name;
     })();
