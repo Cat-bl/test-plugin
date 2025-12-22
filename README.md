@@ -4,8 +4,8 @@
 # 只兼容Trss yunzai + Napcat，其他框架请勿使用
 
 # 部分使用效果
-![本地路径](.\assets\images\1.jpeg)
-![本地路径](.\assets\images\2.png)
+![效果图1](./assets/images/1.jpeg)
+![效果图2](./assets/images/2.png)
 
 # 1. 安装
 
