@@ -38,11 +38,11 @@ export class MCPClientManager {
                     transport = this.createStreamableHTTPTransport(serverName, config)
                     logger.info(`[MCP] 正在连接 Streamable HTTP 服务器: ${serverName}`)
                     break
-                case 'websocket':
-                case 'ws':
-                    transport = this.createWebSocketTransport(serverName, config)
-                    logger.info(`[MCP] 正在连接 WebSocket 服务器: ${serverName}`)
-                    break
+                // case 'websocket':
+                // case 'ws':
+                //     transport = this.createWebSocketTransport(serverName, config)
+                //     logger.info(`[MCP] 正在连接 WebSocket 服务器: ${serverName}`)
+                //     break
                 case 'stdio':
                 default:
                     transport = this.createStdioTransport(serverName, config)

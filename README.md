@@ -32,6 +32,28 @@ pnpm install
 ### 列出mcp工具列表
 #mcp 列表
 
+# mcp-servers配置说明
+已实现MCP官方3种标准连接方式（Stdio、SSE、Streamable HTTP）设置type即可("sse","stdio","http")，默认stdio。例sse链接：
+```yaml
+ChatPPT:
+    enabled: false
+    type: "sse"
+      description: "ChatPPT MCP Server 目前已经开放了 10 个智能PPT文档的接口能力"
+      baseUrl: "https://dashscope.aliyuncs.com/api/v1/mcps/ChatPPT/sse"
+      headers: {
+        Authorization: "Bearer xxx"
+      }
+      systemPrompt: |
+        【MCP扩展能力】
+        请在此处书写当前MCP工具的systemPrompt
+```
+
+### 注意如果要配置MCP工具的systemPrompt，请务必按照以下格式添加【MCP扩展能力】字段，例：
+```yaml
+systemPrompt: |
+    【MCP扩展能力】
+    请在此处书写当前MCP工具的systemPrompt
+ ```
 
 
 # message.yaml配置说明
