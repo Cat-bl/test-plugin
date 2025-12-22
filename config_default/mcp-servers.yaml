@@ -10,7 +10,7 @@
 servers:
   # Memory记忆服务器 - 提供持久化记忆能力
   basic-memory:
-     enabled: true
+     enabled: false
      command: "uvx"
      args:
       - "basic-memory"
