@@ -1,8 +1,11 @@
 # 自用插件留存
-修改自y-tian-plugin，移除了多余功能，重构全局对话实现代码，新增MCP工具功能，新增部分本地工具
+### 修改自y-tian-plugin，移除了多余功能，重构全局对话实现代码，新增MCP工具功能，新增部分本地工具
 
 # 只兼容Trss yunzai + Napcat，其他框架请勿使用
 
+# 部分使用效果
+![本地路径](.\assets\images\1.jpeg)
+![本地路径](.\assets\images\2.png)
 
 # 1. 安装
 

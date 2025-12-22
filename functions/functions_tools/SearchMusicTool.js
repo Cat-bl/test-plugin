@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 import md5 from 'md5';
 import YAML from "yaml";
 import path from "path";
+import fs from "fs";
 
 const NO_PIC = '';
 
