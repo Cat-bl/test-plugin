@@ -2,9 +2,10 @@ pluginSettings:
   enabled: true
   botName: 哈基米
   groupHistory: true
-  UseTools: true
+  emojiEnabled: true
+  useTools: true
   replyChance: 0
-  ConcurrentLimit: 3
+  concurrentLimit: 3
   triggerPrefixes:
     - 哈基米
   excludeMessageTypes:
@@ -18,8 +19,8 @@ pluginSettings:
   maxToolRounds: 5
   providers: oneapi
   systemContent: 你的名字叫哈基米，你是一个热心的群友，可以热心的解决群友的问题，文明的和群友聊天
-  ForcedAvatarMode: true
-  ForceformatMessage: false
+  forcedAvatarMode: true
+  forceformatMessage: false
   toolsAiConfig: {
     toolsAiUrl: https://api.openai.com/v1/chat/completions,
     toolsAiModel: gemini-2.5-flash,

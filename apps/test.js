@@ -110,7 +110,7 @@ export class ExamplePlugin extends plugin {
     })
 
     this.initConfig()
-
+    EMOJI_CONFIG.enabled = this.config?.emojiEnabled || false
     const state = initializeSharedState(this.config)
 
     this.messageManager = state.messageManager
@@ -455,7 +455,7 @@ export class ExamplePlugin extends plugin {
       top_p: 0.9
     }
 
-    if (this.config.UseTools && tools?.length && toolChoice !== "none") {
+    if (this.config.useTools && tools?.length && toolChoice !== "none") {
       data.tools = tools
       data.tool_choice = toolChoice
     }
@@ -530,7 +530,7 @@ export class ExamplePlugin extends plugin {
     const sessionId = randomUUID()
     e.sessionId = sessionId
     const session = this.getOrCreateSession(sessionId, this.tools)
-    const limit = pLimit(this.config.ConcurrentLimit || 5)
+    const limit = pLimit(this.config.concurrentLimit || 5)
 
     let groupUserMessages = session.groupUserMessages
 
@@ -654,7 +654,7 @@ ${mcpPrompts}
         if (session.tools?.length) toolChoice = { type: "function", function: { name: "videoAnalysisTool" } }
       }
 
-      if (this.config.ForcedAvatarMode && msg?.includes("头像编辑")) {
+      if (this.config.forcedAvatarMode && msg?.includes("头像编辑")) {
         session.tools = this.getToolsByName(["googleImageEditTool"])
         if (session.tools?.length) toolChoice = { type: "function", function: { name: "googleImageEditTool" } }
         session.groupUserMessages.at(-1).content += `[用户头像链接: (https://q1.qlogo.cn/g?b=qq&nk=${e.user_id}&s=640)]`

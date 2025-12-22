@@ -13,8 +13,8 @@ export async function YTapi(requestData, config, toolContent, toolName) {
     try {
         let url, headers, finalRequestData;
 
-        if (config.UseTools) {
-            // UseTools 开启，先调用 OpenAI API
+        if (config.useTools) {
+            // useTools 开启，先调用 OpenAI API
             const openaiUrl = `${config.toolsAiConfig.toolsAiUrl}`;
             // 确保使用OpenAiModel的模型
             if (!config.toolsAiConfig.toolsAiApikey) return { error: "OpenAI stoken is not configured" };
@@ -106,7 +106,7 @@ export async function YTapi(requestData, config, toolContent, toolName) {
                 stream: false
             };
         } else {
-            // UseTools 关闭，直接使用 OneAPI
+            // useTools 关闭，直接使用 OneAPI
             if (!config.chatAiConfig.chatApiUrl || !config.chatAiConfig.chatApiModel || !config.chatAiConfig.chatApiKey?.length) {
                 return { error: "OneAPI URL, Model, or API Key is not configured" };
             }
