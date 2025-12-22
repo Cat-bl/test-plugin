@@ -109,6 +109,8 @@ systemPrompt: |
 | `useTools` | boolean | `true` | **工具调用开关**：是否启用扩展功能工具 |
 | `maxToolRounds` | int | `5` | **最大工具调用轮次**：单次对话中调用工具的最大次数 |
 | `openai_tool_choice` | string | `"auto"` | **工具选择模式**：自动选择适用的工具 |
+| `githubToken` | string | `""` | **GithubTool工具使用**：解析git仓库 |
+| `qqMusicToken` | string | `""` | **SearchMusicTool工具使用**：发送音乐卡片时使用，如果不配置发送出来的是试听版 |
 
 ---
 
