@@ -558,14 +558,14 @@ export class ExamplePlugin extends plugin {
         ? chatHistory.map(h => `[${h.role === 'bot' ? '机器人' : '用户'}] ${h.content}`).join('\n')
         : '(无历史记录)'
 
-      const response = await fetch(this.config.toolsAiConfig.toolsAiUrl, {
+      const response = await fetch(this.config.trackAiConfig.trackAiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.config.toolsAiConfig.toolsAiApikey}`,
+          'Authorization': `Bearer ${this.config.trackAiConfig.trackAiApikey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: this.config.toolsAiConfig.toolsAiModel,
+          model: this.config.trackAiConfig.trackAiModel,
           messages: [
             {
               role: "system",
@@ -668,14 +668,14 @@ ${recentHistory || '(无)'}
 ---`
       }).join('\n\n')
 
-      const response = await fetch(this.config.toolsAiConfig.toolsAiUrl, {
+      const response = await fetch(this.config.trackAiConfig.trackAiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.config.toolsAiConfig.toolsAiApikey}`,
+          'Authorization': `Bearer ${this.config.trackAiConfig.trackAiApikey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: this.config.toolsAiConfig.toolsAiModel,
+          model: this.config.trackAiConfig.trackAiModel,
           messages: [
             {
               role: "system",

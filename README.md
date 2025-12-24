@@ -143,6 +143,13 @@ systemPrompt: |
 
 ## 模型服务配置
 
+### 聊天跟踪判断模型配置 (`trackAiConfig`)
+```yaml
+trackAiUrl: "https://api.openai.com/v1/chat/completions"
+trackAiModel: "gpt-4o-mini"
+trackAiApikey: "sk-xxxxx"
+```
+
 ### 工具调用模型配置 (`toolsAiConfig`)
 ```yaml
 toolsAiUrl: "https://api.openai.com/v1/chat/completions"

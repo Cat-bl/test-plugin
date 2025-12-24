@@ -23,6 +23,11 @@ pluginSettings:
   providers: oneapi
   systemContent: 你的名字叫哈基米，你是一个热心的群友，可以热心的解决群友的问题，文明的和群友聊天
   forcedAvatarMode: true
+  trackAiConfig: {
+    trackAiUrl: https://api.openai.com/v1/chat/completions,
+    trackAiModel: gemini-2.5-flash,
+    trackAiApikey: sk-xxxxx
+  }
   toolsAiConfig: {
     toolsAiUrl: https://api.openai.com/v1/chat/completions,
     toolsAiModel: gemini-2.5-flash,
