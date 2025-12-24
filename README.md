@@ -105,7 +105,7 @@ systemPrompt: |
 | `conversationTrackingEnabled` | boolean | `false` | **会话追踪开关**：是否启用会话追踪功能 |
 | `conversationTrackingTimeout` | int | `2` | **追踪超时时间（分钟）**：用户触发对话后，追踪其后续消息的时间窗口 |
 | `conversationTrackingThrottle` | int | `3` | **节流时间（秒）**：同一用户连续发消息时，间隔多少秒才调用AI判断 |
-| `batchJudgmentDelay` | int | `3` | **批量判断延迟（秒）**：收集多少秒内的消息后批量判断，减少API调用 |
+| `batchJudgmentDelay` | int | `10` | **批量判断延迟（秒）**：收集多少秒内的消息后批量判断，减少API调用 |
 
 **工作原理**：
 1. 用户通过 @机器人 或触发关键词开始对话，启动独立的追踪定时器
