@@ -25,7 +25,7 @@ pluginSettings:
   forcedAvatarMode: true
   trackAiConfig: {
     trackAiUrl: https://api.openai.com/v1/chat/completions,
-    trackAiModel: gemini-2.5-flash,
+    trackAiModel: gpt-4o-mini,
     trackAiApikey: sk-xxxxx
   }
   toolsAiConfig: {

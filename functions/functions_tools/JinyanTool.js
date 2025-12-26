@@ -109,9 +109,9 @@ export class JinyanTool extends AbstractTool {
     const groupId = e.group_id;
 
     // 权限检查
-    if (!['owner', 'admin'].includes(senderRole)) {
-      return '只有群主或管理员才能执行禁言操作';
-    }
+    // if (!['owner', 'admin'].includes(senderRole)) {
+    //   return '只有群主或管理员才能执行禁言操作';
+    // }
 
     // 获取群对象
     let group;
