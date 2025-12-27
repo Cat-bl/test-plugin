@@ -104,7 +104,7 @@ export class ExamplePlugin extends plugin {
       name: "全局方案-test",
       dsc: "全局方案测试版",
       event: "message",
-      priority: 2000,
+      priority: 2001,
       rule: [
         { reg: "^#tool\\s*(.*)", fnc: "handleTool" },
         { reg: "^#mcp\\s+重载", fnc: "reloadMCP" },

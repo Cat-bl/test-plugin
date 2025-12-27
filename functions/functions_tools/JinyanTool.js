@@ -37,6 +37,11 @@ export class JinyanTool extends AbstractTool {
           type: 'boolean',
           description: '是否确认执行全体禁言',
           default: false
+        },
+        selfDecision: {
+          type: 'boolean',
+          description: '是否为机器人自主决定的禁言操作，为true时跳过发送者权限检查',
+          default: false
         }
       },
       required: ['senderRole']
@@ -98,7 +103,8 @@ export class JinyanTool extends AbstractTool {
       time = 300,
       random = false,
       senderRole,
-      confirm = false
+      confirm = false,
+      selfDecision = false
     } = opts;
 
     // 统一处理时间，任何0或负数都视为解禁
@@ -108,10 +114,10 @@ export class JinyanTool extends AbstractTool {
 
     const groupId = e.group_id;
 
-    // 权限检查
-    // if (!['owner', 'admin'].includes(senderRole)) {
-    //   return '只有群主或管理员才能执行禁言操作';
-    // }
+    // 权限检查（selfDecision为true时跳过）
+    if (!selfDecision && !['owner', 'admin'].includes(senderRole)) {
+      return '用户不是群主或管理员,无权限命令你执行禁言操作';
+    }
 
     // 获取群对象
     let group;
