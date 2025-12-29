@@ -205,4 +205,7 @@ searchApiKey: "sk-xxxxx"
 - videoAnalysisTool # 视频分析
 - voiceTool         # 语音工具
 - webParserTool     # 网页解析
+- reactionTool      # 表情回应/贴表情
+- memberInfoTool    # 群成员信息查询
+- recallTool        # 消息撤回
 ```

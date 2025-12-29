@@ -17,6 +17,9 @@ import { QQZoneTool } from "../functions/functions_tools/QQZoneTool.js"
 import { ChangeCardTool } from "../functions/functions_tools/ChangeCardTool.js"
 import { VoiceTool } from "../functions/functions_tools/VoiceTool.js"
 import { BananaTool } from "../functions/functions_tools/BananaTool.js"
+import { ReactionTool } from "../functions/functions_tools/ReactionTool.js"
+import { MemberInfoTool } from "../functions/functions_tools/MemberInfoTool.js"
+import { RecallTool } from "../functions/functions_tools/RecallTool.js"
 import { TakeImages } from "../utils/fileUtils.js"
 import { loadData, saveData } from "../utils/redisClient.js"
 import { YTapi } from "../utils/apiClient.js"
@@ -82,7 +85,10 @@ function initializeSharedState(config) {
       qqZoneTool: new QQZoneTool(),
       changeCardTool: new ChangeCardTool(),
       voiceTool: new VoiceTool(),
-      bananaTool: new BananaTool()
+      bananaTool: new BananaTool(),
+      reactionTool: new ReactionTool(),
+      memberInfoTool: new MemberInfoTool(),
+      recallTool: new RecallTool()
     },
     sessionMap: new Map()
   }
@@ -394,7 +400,8 @@ export class ExamplePlugin extends plugin {
 
   async buildMessageContent(sender, msg, images, atQq = [], group, e = null) {
     const senderRole = roleMap[sender.role] || "member"
-    const senderInfo = `${sender.card || sender.nickname}(qq号: ${sender.user_id})[群身份: ${senderRole}]`
+    const messageId = e?.message_id ? `[消息ID:${e.message_id}]` : ''
+    const senderInfo = `${sender.card || sender.nickname}(qq号: ${sender.user_id})[群身份: ${senderRole}]${messageId}`
 
     let atContent = ""
     if (atQq.length > 0 && group) {
@@ -444,6 +451,7 @@ export class ExamplePlugin extends plugin {
             }
 
             const quotedSenderInfo = `${quotedNickname}(qq号: ${quotedSender.user_id})[群身份: ${quotedRole}]`
+            const quotedMessageId = reply.message_id ? `[消息ID:${reply.message_id}]` : ''
 
             let quotedDescription = ""
             if (quotedMsg && hasQuotedImage) {
@@ -456,7 +464,7 @@ export class ExamplePlugin extends plugin {
               quotedDescription = "一条消息"
             }
 
-            quoteContent = `引用了 ${quotedSenderInfo} 的消息: ${quotedDescription}，`
+            quoteContent = `引用了 ${quotedSenderInfo}${quotedMessageId} 的消息: ${quotedDescription}，`
           }
         }
       } catch (error) {
@@ -938,7 +946,7 @@ ${mcpPrompts}
             })
             .map(msg => ({
               role: msg.sender.user_id === Bot.uin ? "assistant" : "user",
-              content: `[${msg.time}] ${msg.sender.nickname}(QQ号:${msg.sender.user_id})[群身份: ${roleMap[msg.sender.role] || "member"}]: ${msg.content}`
+              content: `[${msg.time}] ${msg.sender.nickname}(QQ号:${msg.sender.user_id})[群身份: ${roleMap[msg.sender.role] || "member"}]${msg.message_id ? `[消息ID:${msg.message_id}]` : ''}: ${msg.content}`
             }))
         }
       }
@@ -1310,7 +1318,7 @@ ${mcpPrompts}
 
   async handleTextResponse(content, e, session, messages, limit, toolName) {
     const output = await this.processToolSpecificMessage(content, toolName)
-    await limit(() => this.sendSegmentedMessage(e, output))
+    const botMessageId = await limit(() => this.sendSegmentedMessage(e, output))
 
     // 更新会话追踪中的对话历史
     if (this.config.conversationTrackingEnabled && e.group_id && e.user_id) {
@@ -1379,6 +1387,7 @@ ${mcpPrompts}
       await limit(() => this.messageManager.recordMessage({
         message_type: e.message_type,
         group_id: e.group_id,
+        message_id: botMessageId,
         time: now + (session.toolResults?.length || 0) + 1,
         message: [{ type: "text", text: content }],
         source: "send",
@@ -1418,24 +1427,30 @@ ${mcpPrompts}
       }
 
       const { total_tokens } = await TotalTokens(output)
+      let lastMessageId = null
 
       if (total_tokens <= 10) {
+        let res
         if (hasAt) {
-          return await e.reply([...atQQList.map(qq => segment.at(qq)), ' ', output])
+          res = await e.reply([...atQQList.map(qq => segment.at(qq)), ' ', output])
         } else {
-          return await e.reply(output, shouldQuote)
+          res = await e.reply(output, shouldQuote)
         }
+        lastMessageId = res?.message_id
+        return lastMessageId
       }
 
       const segments = this.splitMessage(output)
       for (let i = 0; i < segments.length; i++) {
         if (segments[i]?.trim()) {
           const quote = shouldQuote && i === 0
+          let res
           if (hasAt && i === 0) {
-            await e.reply([...atQQList.map(qq => segment.at(qq)), ' ', segments[i].trim()])
+            res = await e.reply([...atQQList.map(qq => segment.at(qq)), ' ', segments[i].trim()])
           } else {
-            await e.reply(segments[i].trim(), quote)
+            res = await e.reply(segments[i].trim(), quote)
           }
+          lastMessageId = res?.message_id
 
           if (i < segments.length - 1) {
             const delay = Math.min(1000 + segments[i].length * 5 + Math.random() * 500, 3000)
@@ -1443,9 +1458,11 @@ ${mcpPrompts}
           }
         }
       }
+      return lastMessageId
     } catch (error) {
       console.error("分段发送错误:", error)
-      await e.reply(output)
+      const res = await e.reply(output)
+      return res?.message_id
     }
   }
 
