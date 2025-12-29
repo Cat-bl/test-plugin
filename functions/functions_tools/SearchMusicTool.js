@@ -42,8 +42,11 @@ export class SearchMusicTool extends AbstractTool {
     const { keyword, isArtistOnly = false } = opts;
     const config = this.loadConfig();
     const { qqMusicToken } = config || {};
-    if (qqMusicToken) this.musicCookies.qqmusic = qqMusicToken;
-    await this.updateQQMusicCk();
+    if (qqMusicToken) {
+      this.musicCookies.qqmusic = qqMusicToken
+      await this.updateQQMusicCk();
+    };
+
     try {
       // 根据是否只搜歌手决定搜索数量
       const searchCount = isArtistOnly ? this.randomPoolSize : 1;
