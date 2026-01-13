@@ -8,7 +8,7 @@ export class ReactionTool extends AbstractTool {
   constructor() {
     super();
     this.name = 'reactionTool';
-    this.description = '对消息添加表情回应/贴表情，当需要用表情回应某条消息时调用此工具，你可以主动调用以增加群聊氛围。可以从聊天历史记录中的[消息ID:xxx]获取message_id参数';
+    this.description = '对消息添加表情回应/贴表情，当需要用表情回应某条消息时调用此工具，你可以主动调用以增加群聊氛围，但不要短时间内调用多次。可以从聊天历史记录中的[消息ID:xxx]获取message_id参数';
     this.parameters = {
       type: 'object',
       properties: {

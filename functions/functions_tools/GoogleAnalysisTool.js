@@ -106,9 +106,42 @@ export class GoogleImageAnalysisTool extends AbstractTool {
     }
 
 
-    getRKey(url) {
+    /**
+     * 调用OneBotv11 API
+     */
+    async callApi(action, params = {}) {
+        try {
+            if (typeof Bot !== 'undefined' && Bot.sendApi) {
+                return await Bot.sendApi(action, params);
+            } else if (typeof global.bot !== 'undefined' && global.bot.sendApi) {
+                return await global.bot.sendApi(action, params);
+            } else {
+                throw new Error('找不到OneBotv11 API调用接口');
+            }
+        } catch (error) {
+            console.error(`调用API ${action} 失败:`, error);
+            throw error;
+        }
+    }
+
+    async getRKey(url) {
+        // 检查URL是否包含rkey参数
         const rkeyMatch = url.match(/rkey=([^&]+)/);
-        return rkeyMatch ? rkeyMatch[1] : null;
+        if (!rkeyMatch) return null;
+
+        try {
+            const response = await this.callApi('nc_get_rkey');
+            if (response?.status === 'ok' && response?.data?.length >= 2) {
+                // 取数组中第二个元素的rkey，去掉开头的"&rkey="
+                const rkeyValue = response.data[1].rkey;
+                return rkeyValue.replace(/^&rkey=/, '');
+            }
+        } catch (error) {
+            console.error('获取rkey失败:', error);
+        }
+
+        // 如果接口调用失败，返回原始rkey
+        return rkeyMatch[1];
     }
 
     extractDomain(url) {
