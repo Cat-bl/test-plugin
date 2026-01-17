@@ -90,7 +90,7 @@ export class ChangeCardTool extends AbstractTool {
 
       const resData = await Bot.sendApi('set_group_card', {
         "group_id": groupId,
-        "user_id": target,
+        "user_id": Number(foundMember.qq),
         "card": cardName
       });
 

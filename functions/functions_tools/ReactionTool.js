@@ -78,7 +78,8 @@ export class ReactionTool extends AbstractTool {
       return '此功能仅支持群聊使用';
     }
 
-    const messageId = message_id;
+    // 确保 message_id 是字符串类型
+    const messageId = String(message_id);
 
     if (!messageId) {
       return '未找到要回应的消息，请提供消息ID';

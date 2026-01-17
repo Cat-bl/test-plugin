@@ -60,6 +60,15 @@ export class AbstractTool {
   
       // 处理其他类型
       if (schema.type && typeof value !== schema.type) {
+        // 自动类型转换
+        if (schema.type === 'string' && typeof value === 'number') {
+          params[key] = String(value);
+          continue;
+        }
+        if (schema.type === 'number' && typeof value === 'string' && !isNaN(Number(value))) {
+          params[key] = Number(value);
+          continue;
+        }
         return `参数 ${key} 类型错误，应为 ${schema.type}`;
       }
   

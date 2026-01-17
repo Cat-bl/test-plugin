@@ -47,20 +47,20 @@ export class RecallTool extends AbstractTool {
   async func(opts, e) {
     const { message_id } = opts;
 
-    let targetMessageId = message_id;
+    let targetMessageId = message_id ? String(message_id) : null;
 
     // 如果没有提供message_id，尝试从引用消息获取
     if (!targetMessageId) {
       if (e.source?.message_id) {
-        targetMessageId = e.source.message_id;
+        targetMessageId = String(e.source.message_id);
       } else if (e.reply_id) {
-        targetMessageId = e.reply_id;
+        targetMessageId = String(e.reply_id);
       } else if (e.source?.seq) {
         // 尝试通过seq获取message_id
         try {
-          const msgInfo = await this.callApi('get_msg', { message_id: e.source.seq });
+          const msgInfo = await this.callApi('get_msg', { message_id: String(e.source.seq) });
           if (msgInfo?.data?.message_id) {
-            targetMessageId = msgInfo.data.message_id;
+            targetMessageId = String(msgInfo.data.message_id);
           }
         } catch (err) {
           // 忽略错误

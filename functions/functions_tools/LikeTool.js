@@ -82,8 +82,9 @@ export class LikeTool extends AbstractTool {
 
       // 执行点赞
       let successCount = 0;
+      const targetQQNum = Number(targetQQ);
       for (let i = 0; i < actualCount; i++) {
-        let success = await Bot.sendLike(targetQQ, 1);
+        let success = await Bot.sendLike(targetQQNum, 1);
         if (success) successCount++;
       }
 
