@@ -114,7 +114,52 @@ function initializeSharedState(config) {
 
   sharedState.functionMap = new Map(sharedState.functions.map(func => [func.name, func]))
 
+  // 如果启用了 searchMusicTool，初始化音乐 cookie 刷新定时任务
+  if (config.oneapi_tools?.includes('searchMusicTool')) {
+    initMusicCookieRefresh(sharedState.toolInstances.searchMusicTool, config)
+  }
+
   return sharedState
+}
+
+// 初始化音乐 cookie 定时刷新
+function initMusicCookieRefresh(searchMusicTool, config) {
+  if (!searchMusicTool) return
+
+  const { qqMusicToken } = config || {}
+  if (!qqMusicToken) {
+    logger.info('[SearchMusicTool] 未配置 qqMusicToken，跳过 cookie 刷新初始化')
+    return
+  }
+
+  // 设置 cookie
+  searchMusicTool.musicCookies.qqmusic = qqMusicToken
+
+  // 立即执行一次刷新检查
+  searchMusicTool.updateQQMusicCk().then(() => {
+    logger.info('[SearchMusicTool] 初始化时 cookie 刷新检查完成')
+  }).catch(err => {
+    logger.error('[SearchMusicTool] 初始化时 cookie 刷新失败:', err)
+  })
+
+  // 每10分钟定时刷新
+  schedule.scheduleJob('*/10 * * * *', async () => {
+    try {
+      // 重新从配置读取最新的 token
+      const configPath = path.join(process.cwd(), 'plugins/bl-chat-plugin/config/message.yaml')
+      const currentConfig = YAML.parse(fs.readFileSync(configPath, 'utf8')).pluginSettings
+      if (currentConfig?.qqMusicToken) {
+        searchMusicTool.musicCookies.qqmusic = currentConfig.qqMusicToken
+      }
+      // 强制触发刷新检查（重置 updateTime 使其立即检查）
+      searchMusicTool.updateTime = 0
+      await searchMusicTool.updateQQMusicCk()
+    } catch (err) {
+      logger.error('[SearchMusicTool] 定时刷新 cookie 失败:', err)
+    }
+  })
+
+  logger.info('[SearchMusicTool] cookie 定时刷新任务已启动（每10分钟）')
 }
 
 export class ExamplePlugin extends plugin {

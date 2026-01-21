@@ -40,12 +40,6 @@ export class SearchMusicTool extends AbstractTool {
 
   async func(opts, e) {
     const { keyword, isArtistOnly = false } = opts;
-    const config = this.loadConfig();
-    const { qqMusicToken } = config || {};
-    if (qqMusicToken) {
-      this.musicCookies.qqmusic = qqMusicToken
-      await this.updateQQMusicCk();
-    };
 
     try {
       // 根据是否只搜歌手决定搜索数量
@@ -372,7 +366,13 @@ export class SearchMusicTool extends AbstractTool {
     param.musickey = (ckMap.get('qqmusic_key') || ckMap.get('qm_keyst')) || '';
 
     try {
-      const res = await this.postJson('https://u.y.qq.com/cgi-bin/musicu.fcg', body);
+      // 刷新 token 需要使用 x-www-form-urlencoded 请求头
+      const response = await fetch('https://u.y.qq.com/cgi-bin/musicu.fcg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: JSON.stringify(body)
+      });
+      const res = await response.json();
       if (res?.req_0?.code === 0) {
         const data = res.req_0.data;
         const cookies = [];
