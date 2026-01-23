@@ -71,7 +71,7 @@ systemPrompt: |
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `enabled` | boolean | `true` | **主开关**：`false` 时完全关闭 AI 对话功能 |
-| `botName` | string | `"哈基米"` | **AI 名字**：机器人在聊天中显示的名称 |
+| `botName` | string | `"哈基米"` | 可不配置，为空时自动取Bot.nickname |
 | `emojiEnabled` | boolean | `true` | **表情包功能**：是否开启随机发送表情包（从机器人 QQ 收藏的表情包中选择） |
 | `forcedAvatarMode` | boolean | `true` | **头像获取**：是否强制获取用户头像 |
 
@@ -132,7 +132,7 @@ systemPrompt: |
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
 | `systemContent` | string | `"你的名字叫哈基米..."` | **系统提示词**：定义 AI 的个性和行为准则 |
-| `providers` | string | `"oneapi"` | **服务提供商**：通常保持默认值 |
+| `providers` | string | `"oneapi"` | **服务提供商**：默认就好不要修改 |
 | `useTools` | boolean | `true` | **工具调用开关**：是否启用扩展功能工具 |
 | `maxToolRounds` | int | `5` | **最大工具调用轮次**：单次对话中调用工具的最大次数 |
 | `openai_tool_choice` | string | `"auto"` | **工具选择模式**：自动选择适用的工具 |
