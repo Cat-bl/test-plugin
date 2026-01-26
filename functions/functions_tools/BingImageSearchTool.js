@@ -1,25 +1,25 @@
 import { AbstractTool } from './AbstractTool.js';
 import fetch from 'node-fetch';
+import crypto from 'crypto';
 
 /**
- * BingImageSearch 工具类，用于搜索二次元图片
- * 数据源：Yande.re + Konachan（高清动漫壁纸站）
+ * BingImageSearch 工具类，用于搜索 Bing 图片
  */
 export class BingImageSearchTool extends AbstractTool {
     constructor() {
         super();
         this.name = 'bingImageSearchTool';
-        this.description = '根据关键词搜索二次元/动漫图片并返回图片 URL 列表，支持英文标签搜索效果更好（如：cat_ears, landscape, sunset）';
+        this.description = '根据关键词搜索图片并返回图片 URL 列表';
         this.parameters = {
             type: "object",
             properties: {
                 query: {
                     type: 'string',
-                    description: '搜索的图片关键词，建议使用英文标签，多个标签用空格分隔（如：cat_ears blue_eyes）'
+                    description: '搜索的图片关键词'
                 },
                 count: {
                     type: 'number',
-                    description: '返回结果数量，最多10个',
+                    description: '返回结果数量,最多10个',
                     default: 10
                 }
             },
@@ -28,132 +28,214 @@ export class BingImageSearchTool extends AbstractTool {
     }
 
     /**
-     * Fisher-Yates 洗牌算法
+     * 生成请求所需的签名和headers
+     * @returns {Promise<Object>} 请求头对象
      */
-    shuffleArray(array) {
-        const arr = [...array];
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
+    async buildHeaders() {
+        const gecSignature = crypto.randomBytes(32).toString('hex').toUpperCase();
+        const clientData = Buffer.from(JSON.stringify({
+            "1": "2",
+            "2": "1",
+            "3": "0",
+            "4": Date.now().toString(),
+            "6": "stable",
+            "7": Math.floor(Math.random() * 9999999999999),
+            "9": "desktop"
+        })).toString('base64');
+
+        return {
+            'accept': '*/*',
+            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'sec-ch-ua': '"Microsoft Edge";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'sec-ms-gec': gecSignature,
+            'sec-ms-gec-version': '1-131.0.2903.112',
+            'x-client-data': clientData,
+            'x-edge-shopping-flag': '1',
+            'Referer': 'https://cn.bing.com/visualsearch',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        };
     }
 
     /**
-     * 从 Booru 站点搜索图片
-     * @param {string} baseUrl - API 基础 URL
+     * 执行 Bing 图片搜索
      * @param {string} query - 搜索关键词
-     * @param {number} count - 需要的结果数量
-     * @param {string} siteName - 站点名称（用于日志）
+     * @param {number} count - 返回结果数量，范围1-10
      * @returns {Promise<Array<string>|null>} - 图片URL列表或null
      */
-    async searchBooru(baseUrl, query, count, siteName) {
+    async searchImages(query, count = 10) {
+        // 限制返回数量范围为1-10
+        count = Math.max(1, Math.min(10, count));
+
         try {
-            // 处理搜索关键词：空格转换为+，添加safe过滤
-            const tags = query.trim().replace(/\s+/g, '+') + '+rating:safe';
+            const url = new URL('https://cn.bing.com/images/vsasync');
+            url.searchParams.set('q', query);
+            url.searchParams.set('count', count);
 
-            // 随机页数，增加图片多样性
-            const randomPage = Math.floor(Math.random() * 10) + 1;
+            let imageUrls = [];
+            let retryCount = 0;
+            const maxRetries = 3;
 
-            const url = `${baseUrl}?tags=${encodeURIComponent(tags)}&limit=${Math.min(count * 3, 100)}&page=${randomPage}`;
+            while (imageUrls.length < count && retryCount < maxRetries) {
+                const response = await fetch(url.toString(), {
+                    method: 'GET',
+                    headers: await this.buildHeaders()
+                });
 
-            console.log(`[图片搜索] ${siteName} 请求: ${url}`);
+                if (!response.ok) {
+                    retryCount++;
+                    if (retryCount >= maxRetries) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    // 添加延迟后重试
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    continue;
+                }
 
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'application/json'
-                },
-                timeout: 15000
-            });
+                const data = await response.json();
 
-            if (!response.ok) {
-                console.error(`[图片搜索] ${siteName} HTTP错误: ${response.status}`);
-                return null;
+                // 提取图片URL
+                imageUrls = data.results
+                    .map(item => item.imageUrl)
+                    .filter(url => url);
+
+                // 如果获取的图片不足，增加重试次数
+                if (imageUrls.length < count) {
+                    retryCount++;
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
 
-            const data = await response.json();
-
-            if (!Array.isArray(data) || data.length === 0) {
-                console.log(`[图片搜索] ${siteName} 无结果`);
-                return null;
+            // 如果获取的图片不足count张，通过重复已有图片来补足
+            while (imageUrls.length < count) {
+                imageUrls = imageUrls.concat(imageUrls.slice(0, count - imageUrls.length));
             }
 
-            // 提取图片URL，优先使用高清图
-            const imageUrls = data
-                .map(item => item.file_url || item.jpeg_url || item.sample_url)
-                .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')));
+            // Fisher-Yates 洗牌算法
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            };
 
-            console.log(`[图片搜索] ${siteName} 获取到 ${imageUrls.length} 张图片`);
+            // 生成随机数
+            const getRandomInt = (min, max) => {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            };
 
-            // 随机打乱并返回指定数量
-            return this.shuffleArray(imageUrls).slice(0, count);
+            // 进行多次随机打乱
+            const shuffleCount = getRandomInt(3, 5);
+            for (let i = 0; i < shuffleCount; i++) {
+                shuffleArray(imageUrls);
+                imageUrls.sort(() => Math.random() - 0.5);
+                if (Math.random() > 0.5) {
+                    imageUrls.reverse();
+                }
+                if (Math.random() > 0.5) {
+                    const splitIndex = Math.floor(imageUrls.length / 2);
+                    const firstHalf = imageUrls.slice(0, splitIndex);
+                    const secondHalf = imageUrls.slice(splitIndex);
+                    imageUrls = [...secondHalf, ...firstHalf];
+                }
+            }
+
+            shuffleArray(imageUrls);
+            return imageUrls.slice(0, count);
 
         } catch (error) {
-            console.error(`[图片搜索] ${siteName} 错误:`, error.message);
+            console.error('Bing图片搜索错误:', error);
             return null;
         }
     }
 
     /**
-     * 从 Yande.re 搜索图片（主源）
+     * 执行壁纸搜索
+     * @param {string} query - 搜索关键词
+     * @param {number} numResults - 需要的结果数量
+     * @returns {Promise<Array<string>|null>} - 图片URL列表或null
      */
-    async searchYandere(query, count) {
-        return this.searchBooru('https://yande.re/post.json', query, count, 'Yande.re');
-    }
-
-    /**
-     * 从 Konachan 搜索图片（备用源）
-     */
-    async searchKonachan(query, count) {
-        return this.searchBooru('https://konachan.com/post.json', query, count, 'Konachan');
-    }
-
-    /**
-     * 从 Danbooru 搜索图片（第三备用源）
-     */
-    async searchDanbooru(query, count) {
+    async searchWallpapers(query, numResults = 10) {
         try {
-            const tags = query.trim().replace(/\s+/g, '+') + '+rating:general';
-            const randomPage = Math.floor(Math.random() * 10) + 1;
+            const hashValue = crypto.randomBytes(32).toString('hex');
+            const params = new URLSearchParams({
+                product_id: 52,
+                version_code: 28103,
+                page: 0,
+                search_word: query,
+                maxWidth: 99999,
+                minWidth: 0,
+                maxHeight: 99999,
+                minHeight: 0,
+                searchMode: "ACCURATE_SEARCH",
+                sort: 0,
+                sign: hashValue
+            });
 
-            const url = `https://danbooru.donmai.us/posts.json?tags=${encodeURIComponent(tags)}&limit=${Math.min(count * 3, 100)}&page=${randomPage}`;
-
-            console.log(`[图片搜索] Danbooru 请求: ${url}`);
-
-            const response = await fetch(url, {
-                method: 'GET',
+            const response = await fetch("https://wallpaper.soutushenqi.com/v1/wallpaper/list", {
+                method: 'POST',
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': 'application/json'
+                    'content-type': 'application/x-www-form-urlencoded',
                 },
-                timeout: 15000
+                body: params.toString(),
+                timeout: 10000,
             });
 
             if (!response.ok) {
-                console.error(`[图片搜索] Danbooru HTTP错误: ${response.status}`);
-                return null;
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
 
-            if (!Array.isArray(data) || data.length === 0) {
-                console.log(`[图片搜索] Danbooru 无结果`);
+            if (!data.data || !Array.isArray(data.data)) {
                 return null;
             }
 
-            // Danbooru 的字段名不同
-            const imageUrls = data
-                .map(item => item.file_url || item.large_file_url)
-                .filter(url => url && (url.startsWith('http://') || url.startsWith('https://')));
+            const imageUrls = data.data
+                .filter(item => item.largeUrl && !item.largeUrl.includes('fw480'))
+                .map(item => item.largeUrl);
 
-            console.log(`[图片搜索] Danbooru 获取到 ${imageUrls.length} 张图片`);
+            const uniqueUrls = [...new Set(imageUrls)];
 
-            return this.shuffleArray(imageUrls).slice(0, count);
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            };
+
+            const getRandomInt = (min, max) => {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            };
+
+            const shuffleCount = getRandomInt(3, 5);
+            let results = [...uniqueUrls];
+
+            for (let i = 0; i < shuffleCount; i++) {
+                shuffleArray(results);
+                results.sort(() => Math.random() - 0.5);
+                if (Math.random() > 0.5) {
+                    results.reverse();
+                }
+                if (Math.random() > 0.5) {
+                    const splitIndex = Math.floor(results.length / 2);
+                    const firstHalf = results.slice(0, splitIndex);
+                    const secondHalf = results.slice(splitIndex);
+                    results = [...secondHalf, ...firstHalf];
+                }
+            }
+
+            shuffleArray(results);
+            return results.slice(0, numResults);
 
         } catch (error) {
-            console.error(`[图片搜索] Danbooru 错误:`, error.message);
+            console.error('壁纸搜索错误:', error);
             return null;
         }
     }
@@ -173,108 +255,93 @@ export class BingImageSearchTool extends AbstractTool {
             return '搜索关键词（query）是必填项。';
         }
 
-        console.log(`[图片搜索] 开始搜索: "${query}", 数量: ${count}`);
+        let imageUrls = await this.searchWallpapers(query, count);
 
-        let imageUrls = [];
-
-        // 1. 首先尝试 Yande.re
-        const yandereResults = await this.searchYandere(query, count);
-        if (yandereResults && yandereResults.length > 0) {
-            imageUrls = yandereResults;
-        }
-
-        // 2. 如果不足，尝试 Konachan 补充
-        if (imageUrls.length < count) {
-            const konachanResults = await this.searchKonachan(query, count - imageUrls.length);
-            if (konachanResults && konachanResults.length > 0) {
-                imageUrls = [...new Set([...imageUrls, ...konachanResults])];
-            }
-        }
-
-        // 3. 如果还不足，尝试 Danbooru 补充
-        if (imageUrls.length < count) {
-            const danbooruResults = await this.searchDanbooru(query, count - imageUrls.length);
-            if (danbooruResults && danbooruResults.length > 0) {
-                imageUrls = [...new Set([...imageUrls, ...danbooruResults])];
-            }
-        }
-
-        // 截取到目标数量
-        imageUrls = imageUrls.slice(0, count);
-
-        console.log(`[图片搜索] 最终获取 ${imageUrls.length} 张图片`);
-
+        // 如果壁纸搜索完全失败，切换到 Bing 搜索
         if (!imageUrls || imageUrls.length === 0) {
-            return '抱歉，未搜索到相关图片。建议使用英文标签搜索，如：cat_ears, landscape, sunset, anime_girl 等。';
+            console.log('壁纸搜索无结果，切换到 Bing 搜索');
+            imageUrls = await this.searchImages(query, count);
         }
+        // 如果壁纸搜索结果不足，使用 Bing 搜索补充
+        else if (imageUrls.length < count) {
+            console.log(`壁纸搜索结果不足(${imageUrls.length}/${count})，使用 Bing 搜索补充`);
+            const remainingCount = count - imageUrls.length;
+            const bingResults = await this.searchImages(query, remainingCount);
 
-        // 检查图片可用性
-        async function isImageAccessible(url) {
-            try {
-                const response = await fetch(url, {
-                    method: 'HEAD',
-                    timeout: 5000,
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    }
-                });
-                if (response.ok) {
-                    const contentType = response.headers.get('content-type');
-                    return contentType && contentType.startsWith('image/');
+            if (bingResults && bingResults.length > 0) {
+                imageUrls = [...new Set([...imageUrls, ...bingResults])];
+                if (imageUrls.length > count) {
+                    imageUrls = imageUrls.slice(0, count);
                 }
-                return false;
-            } catch (error) {
-                return false;
             }
         }
 
-        // 并行检查所有图片的可用性
-        const urlChecks = await Promise.allSettled(
-            imageUrls.map(async url => ({
-                url,
-                isAccessible: await isImageAccessible(url)
-            }))
-        );
+        if (imageUrls && imageUrls.length > 0) {
+            async function isImageAccessible(url) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'HEAD',
+                        timeout: 3000
+                    });
+                    if (response.ok) {
+                        const contentType = response.headers.get('content-type');
+                        return contentType && contentType.startsWith('image/');
+                    }
+                    return false;
+                } catch (error) {
+                    return false;
+                }
+            }
 
-        // 过滤出可用的图片URL
-        const validUrls = urlChecks
-            .filter(result => result.status === 'fulfilled' && result.value.isAccessible)
-            .map(result => result.value.url)
-            .slice(0, count);
+            const shuffled = imageUrls.sort(() => 0.5 - Math.random());
 
-        if (validUrls.length === 0) {
-            return '抱歉，未找到可用的图片，请换个关键词重试。';
-        }
+            const urlChecks = await Promise.allSettled(
+                shuffled.map(async url => ({
+                    url,
+                    isAccessible: await isImageAccessible(url)
+                }))
+            );
 
-        // 构建图片消息
-        const allimages = [];
-        for (const url of validUrls) {
+            const validUrls = urlChecks
+                .filter(result => result.status === 'fulfilled' && result.value.isAccessible)
+                .map(result => result.value.url)
+                .slice(0, count);
+
+            if (validUrls.length === 0) {
+                return '抱歉，未找到可用的图片，请重试。';
+            }
+
+            const allimages = [];
+
+            for (const url of validUrls) {
+                try {
+                    const img = segment.image(url);
+                    allimages.push(img);
+                } catch (error) {
+                    console.error(`构建图片消息失败 ${url}:`, error);
+                }
+            }
+
+            if (allimages.length === 0) {
+                return '抱歉，所有图片都无法发送，请重试。';
+            }
+
+            // 发送合并转发消息
             try {
-                const img = segment.image(url);
-                allimages.push(img);
+                const list = allimages.map(img => ({
+                    user_id: '',
+                    nickname: '',
+                    message: img,
+                }));
+
+                await e.bot.adapter.sendGroupForwardMsg(e, list);
+                return `已成功发送 ${allimages.length} 张图片~`;
             } catch (error) {
-                console.error(`构建图片消息失败 ${url}:`, error);
+                console.error('[图片搜索] 发送失败:', error);
+                return '图片发送失败，可能被风控，请稍后再试。';
             }
         }
 
-        if (allimages.length === 0) {
-            return '抱歉，所有图片都无法发送，请重试。';
-        }
-
-        // 发送合并转发消息
-        try {
-            const list = allimages.map(img => ({
-                user_id: '',
-                nickname: '',
-                message: img,
-            }));
-
-            await e.bot.adapter.sendGroupForwardMsg(e, list);
-
-            return `已成功发送 ${allimages.length} 张图片~`;
-        } catch (error) {
-            console.error('[图片搜索] 发送失败:', error);
-            return '图片发送失败，可能被风控，请稍后再试。';
-        }
+        return '抱歉，未搜索到相关图片，请换个关键词试试。';
     }
 }
