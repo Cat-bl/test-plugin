@@ -21,6 +21,7 @@ import { ReactionTool } from "../functions/functions_tools/ReactionTool.js"
 import { MemberInfoTool } from "../functions/functions_tools/MemberInfoTool.js"
 import { RecallTool } from "../functions/functions_tools/RecallTool.js"
 import { GrabRedBagTool } from "../functions/functions_tools/GrabRedBagTool.js"
+import { ReminderTool, checkPendingReminders } from "../functions/functions_tools/ReminderTool.js"
 import { TakeImages } from "../utils/fileUtils.js"
 import { loadData, saveData } from "../utils/redisClient.js"
 import { YTapi } from "../utils/apiClient.js"
@@ -101,7 +102,8 @@ function initializeSharedState(config) {
       reactionTool: new ReactionTool(),
       memberInfoTool: new MemberInfoTool(),
       recallTool: new RecallTool(),
-      grabRedBagTool: new GrabRedBagTool()
+      grabRedBagTool: new GrabRedBagTool(),
+      reminderTool: new ReminderTool()
     },
     sessionMap: new Map()
   }
@@ -220,6 +222,7 @@ export class ExamplePlugin extends plugin {
   }
 
   initScheduledTasks() {
+    // 每天0点清理消息历史记录
     schedule.scheduleJob('0 0 * * *', async () => {
       try {
         logger.info('开始执行消息历史记录清理定时任务')
@@ -229,6 +232,17 @@ export class ExamplePlugin extends plugin {
         logger.error(`定时清理消息历史记录失败: ${error}`)
       }
     })
+
+    // 每秒检查待触发的提醒
+    schedule.scheduleJob('* * * * * *', async () => {
+      try {
+        await checkPendingReminders(this.toolInstances)
+      } catch (error) {
+        logger.error(`[定时提醒] 检查失败: ${error}`)
+      }
+    })
+
+    logger.info('[定时任务] 提醒检查任务已启动（每秒）')
   }
 
   /**

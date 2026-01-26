@@ -76,5 +76,6 @@ pluginSettings:
     - reactionTool
     - memberInfoTool
     - recallTool
+    - reminderTool
   githubToken: ""
   qqMusicToken: ""

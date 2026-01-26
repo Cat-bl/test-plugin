@@ -209,6 +209,7 @@ searchApiKey: "sk-xxxxx"
 - memberInfoTool    # 群成员信息查询
 - recallTool        # 消息撤回
 - grabRedBagTool    # 抢红包工具（需魔改版NapCat）
+- reminderTool      # 定时提醒工具
 ```
 
 ---
