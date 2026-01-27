@@ -1657,14 +1657,17 @@ ${mcpPrompts}
   processToolSpecificMessage(content, toolName) {
     let output = content.replace(/\n/g, "\n")
 
-    // 过滤消息记录格式（如 "[12-24 13:25:15] 哈基米(QQ号: xxx)[群身份: xxx]: 在群里说: 内容"）
-    output = output.replace(/^\[\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\]\s*[^(]+\(QQ号[:：]\s*\d+\)\[群身份[:：]\s*\w+\][:：]\s*(?:在群里说[:：]\s*)?/gi, '')
+    // 过滤消息记录格式（多行全局匹配）
+    // 匹配如: "[01-27 16:12:51] 哈基米(QQ号: 2127498644)[群身份: member]: 以后注意点。"
+    // 或: "[16:11:11] 哈基米(QQ号: xxx)[群身份: xxx]: 在群里说: xxx"
+    // 或: "[MM-DD HH:MM:SS] 迈(QQ号: xxx)[群身份: xxx]: xxx"（AI输出的模板格式）
+    output = output.replace(/\[(?:[A-Z]{2}-[A-Z]{2}\s+[A-Z]{2}:[A-Z]{2}:[A-Z]{2}|\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}|\d{2}:\d{2}:\d{2})\]\s*[^(\n]+\((?:QQ号|qq号)[:：]\s*\d+\)\[群身份[:：]\s*\w+\][:：]\s*(?:艾特了\s*[^(\n]+\((?:QQ号|qq号)[:：]\s*\d+\)\[群身份[:：]\s*\w+\])?\s*(?:在群里说[:：]\s*)?[^\n]*/gi, '')
 
     // 清理模式
     const patterns = [
       /$$图片$$/g,
       /[\s\S]在群里说[:：]\s/g,
-      /$$\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$$\s*.?[:：]\s/g,
+      /\[(?:\d{2}-\d{2}\s+)?\d{2}:\d{2}:\d{2}\]\s*.?[:：]\s/g,
       /[\s\S]*?/g
     ]
 
@@ -1676,6 +1679,8 @@ ${mcpPrompts}
 
     output = ThinkingProcessor.removeThinking(output)
     output = output.replace(/!?$$(.*?)$$(.∗?)(.∗?)/g, "$1\n- $2")
+    // 清理多余空行
+    output = output.replace(/\n{3,}/g, '\n').trim()
     return output.trim()
   }
 
